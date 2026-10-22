@@ -1,0 +1,8 @@
+packages:
+  - apps/web
+  - packages/*
+  - infra/cdk
+
+confirmModulesPurge: false
+allowBuilds:
+  esbuild: true

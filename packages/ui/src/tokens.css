@@ -1,0 +1,23 @@
+:root {
+  --bg: #f5f0e8;
+  --surface: #fffbf5;
+  --surface-strong: #ffffff;
+  --primary: #c7683a;
+  --primary-hover: #aa542e;
+  --accent: #d39a38;
+  --text: #302a25;
+  --muted: #6e655d;
+  --border: #ded3c6;
+  --success: #57745a;
+  --warning: #a86f24;
+  --danger: #b34d3e;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --radius-control: 11px;
+  --radius-card: 16px;
+  --motion-fast: 120ms;
+  --motion-normal: 160ms;
+}
+

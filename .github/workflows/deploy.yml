@@ -1,0 +1,35 @@
+name: deploy-demo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    if: vars.AWS_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: demo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.25.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.14.3" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-northeast-1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @restaurant-ops/web build
+      - name: Build and deploy infrastructure
+        run: pnpm --filter @restaurant-ops/cdk build && pnpm --filter @restaurant-ops/cdk exec cdk deploy -c stage=demo -c billingEmail=${{ vars.AWS_BILLING_EMAIL }} --require-approval never
+
