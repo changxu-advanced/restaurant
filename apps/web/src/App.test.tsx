@@ -44,15 +44,15 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /その他/ })[0]);
     expect(screen.getByRole("heading", { name: "その他" })).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: /確認する/ })[0]);
-    expect(screen.getByRole("heading", { name: "接客与カスタマーハラスメント" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "接客・カスタマーハラスメント" })).toBeInTheDocument();
   });
 
   it("confirms an allergen handover without relying on color", () => {
     window.location.hash = "#/allergens";
     render(<MemoryRouter><App /></MemoryRouter>);
-    expect(screen.getByRole("heading", { name: "过敏原与特殊饮食" })).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "确认交接" })[0]);
-    expect(screen.getAllByRole("button", { name: "已确认" })[0]).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "アレルゲン・特別食" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "引き継ぎを確認" })[0]);
+    expect(screen.getAllByRole("button", { name: "確認済み" })[0]).toBeInTheDocument();
   });
 
   it("fills the time range between two selected hourly blocks", () => {
