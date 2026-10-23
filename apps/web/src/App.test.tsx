@@ -54,5 +54,20 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "确认交接" })[0]);
     expect(screen.getAllByRole("button", { name: "已确认" })[0]).toBeInTheDocument();
   });
+
+  it("fills the time range between two selected hourly blocks", () => {
+    window.location.hash = "#/schedule";
+    render(<MemoryRouter><App /></MemoryRouter>);
+    fireEvent.click(screen.getAllByRole("tab")[2]);
+    const start = screen.getAllByRole("button", { name: "10/28 水 08:00–09:00" })[0];
+    const end = screen.getAllByRole("button", { name: "10/28 水 12:00–13:00" })[0];
+    fireEvent.click(start);
+    fireEvent.click(end);
+    expect(start).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("button", { name: "10/28 水 09:00–10:00" })[0]).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("button", { name: "10/28 水 11:00–12:00" })[0]).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getAllByRole("button", { name: "10/28 水 10:00–11:00" })[0]);
+    expect(screen.getAllByRole("button", { name: "10/28 水 10:00–11:00" })[0]).toHaveAttribute("aria-pressed", "false");
+  });
 });
 
