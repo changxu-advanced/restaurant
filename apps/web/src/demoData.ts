@@ -23,3 +23,12 @@ export const shifts: Shift[] = [
   { id: "s4", employee: "鈴木 海", area: "厨房・洗い場", start: "18:00", end: "22:30" }
 ];
 
+export const featureCards = [
+  { key: "incidents", icon: "message", title: "客诉与カスタマーハラスメント", summary: "记录事实、保护员工，并保留后续处理状态。", status: "1件待确认", tone: "danger" },
+  { key: "reservations", icon: "calendar", title: "预约与无断キャンセル", summary: "确认预约、记录取消原因，避免口头信息遗漏。", status: "今日 12组", tone: "warning" },
+  { key: "equipment", icon: "wrench", title: "设备维修", summary: "拍照报修、安排负责人，追踪到修复完成。", status: "2件进行中", tone: "warning" },
+  { key: "allergens", icon: "shield", title: "过敏原与特殊饮食", summary: "按菜单和客人要求显示确认事项，不以颜色单独判断。", status: "3项已确认", tone: "normal" },
+  { key: "crossStore", icon: "stores", title: "跨店支援", summary: "只向符合技能、时间和工时条件的员工发布支援请求。", status: "明日 1件", tone: "normal" },
+  { key: "evaluations", icon: "star", title: "员工评价", summary: "记录事实和成长目标，避免只用主观印象打分。", status: "本月待完成 4人", tone: "neutral" }
+] as const;
+

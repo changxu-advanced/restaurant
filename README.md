@@ -4,7 +4,9 @@
 
 `Java / Spring Boot / React / TypeScript / PostgreSQL / Python / OR-Tools / AWS CDK` を使用した、日本の飲食店向けポートフォリオプロジェクトです。公開デモはすべて架空データで動作します。
 
-GitHub: https://github.com/changxu-advanced/restaurant · 初回安定版: `v0.1.0`
+GitHub: https://github.com/changxu-advanced/restaurant · 当前版本: `v0.2.0`
+
+第二版在首版营业时间线基础上增加了后期扩展模块：客诉与カスタマーハラスメント、预约与无断キャンセル、设备维修、过敏原与特殊饮食、跨店支援和员工评价。它们统一通过“更多”入口进入，移动端保持单列卡片和44px以上操作区域。
 
 ![今日の営業ボード](docs/portfolio/screenshots/dashboard.png)
 

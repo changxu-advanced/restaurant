@@ -38,5 +38,21 @@ describe("App", () => {
     render(<MemoryRouter><App /></MemoryRouter>);
     expect(fireEvent.copy(screen.getByRole("heading", { name: "飲食業オンライン管理システム" }))).toBe(false);
   });
+
+  it("opens the second-version exception modules from More", () => {
+    render(<MemoryRouter><App /></MemoryRouter>);
+    fireEvent.click(screen.getAllByRole("button", { name: /その他/ })[0]);
+    expect(screen.getByRole("heading", { name: "その他" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /確認する/ })[0]);
+    expect(screen.getByRole("heading", { name: "接客与カスタマーハラスメント" })).toBeInTheDocument();
+  });
+
+  it("confirms an allergen handover without relying on color", () => {
+    window.location.hash = "#/allergens";
+    render(<MemoryRouter><App /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: "过敏原与特殊饮食" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "确认交接" })[0]);
+    expect(screen.getAllByRole("button", { name: "已确认" })[0]).toBeInTheDocument();
+  });
 });
 

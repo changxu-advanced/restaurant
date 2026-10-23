@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 import {
   AlertTriangle, Archive, BadgeInfo, BookOpen, Boxes, CalendarDays, Check, ChevronRight,
   CircleDollarSign, Clock3, Languages, LayoutDashboard, MessageCircle, PackageCheck,
-  Settings, Sparkles, Store, Users, UtensilsCrossed, Eye
+  Settings, Sparkles, Store, Users, UtensilsCrossed, Eye, MoreHorizontal, MessageSquareWarning, Wrench, ShieldCheck, Building2, Star, CalendarCheck, Camera, CheckCircle2
 } from "lucide-react";
-import { employees, initialInventory, shifts } from "./demoData";
+import { employees, featureCards, initialInventory, shifts } from "./demoData";
 import type { InventoryItem, NavKey, StockState } from "./types";
 
 const navItems: Array<{ key: NavKey; icon: typeof LayoutDashboard; managerOnly?: boolean }> = [
@@ -15,8 +15,11 @@ const navItems: Array<{ key: NavKey; icon: typeof LayoutDashboard; managerOnly?:
   { key: "chat", icon: MessageCircle },
   { key: "employees", icon: Users, managerOnly: true },
   { key: "closeout", icon: CircleDollarSign, managerOnly: true },
-  { key: "settings", icon: Settings }
+  { key: "settings", icon: Settings },
+  { key: "more", icon: MoreHorizontal, managerOnly: true }
 ];
+
+const featureIcons = { message: MessageSquareWarning, calendar: CalendarCheck, wrench: Wrench, shield: ShieldCheck, stores: Building2, star: Star } as const;
 
 const availabilityDays = ["10/26 月", "10/27 火", "10/28 水", "10/29 木", "10/30 金", "10/31 土", "11/1 日"];
 const stockOptions: StockState[] = ["enough", "low", "urgent", "out"];
@@ -95,10 +98,10 @@ function Navigation({ active, onChange, role }: { active: NavKey; onChange: (key
             </button>
           ))}
         </nav>
-        <div className="sidebar-note" title="実在する店舗・従業員の情報は使用していません。"><BadgeInfo size={17} /><span><strong>デモ環境</strong><br />架空データのみ · v0.1.0</span></div>
+        <div className="sidebar-note" title="実在する店舗・従業員の情報は使用していません。"><BadgeInfo size={17} /><span><strong>デモ環境</strong><br />架空データのみ · v0.2.0</span></div>
       </aside>
       <nav className="bottom-nav" aria-label="Mobile navigation">
-        {visible.slice(0, 5).map(({ key, icon: Icon }) => (
+        {["today", "schedule", "inventory", "chat", "more"].map((key) => visible.find((item) => item.key === key)).filter((item): item is typeof navItems[number] => Boolean(item)).map(({ key, icon: Icon }) => (
           <button key={key} className={active === key ? "active" : ""} onClick={() => onChange(key)}>
             <Icon size={21} /><span>{t(key)}</span>
           </button>
@@ -106,6 +109,45 @@ function Navigation({ active, onChange, role }: { active: NavKey; onChange: (key
       </nav>
     </>
   );
+}
+
+function MorePage({ onNavigate }: { onNavigate: (key: NavKey) => void }) {
+  const { t } = useTranslation();
+  return <div className="page-stack"><div className="page-title"><div><p className="eyebrow">v0.2.0 · 例外対応</p><h2>{t("more")}</h2><p>日常の営業を邪魔しない、必要な時だけ使う管理功能。</p></div></div><div className="feature-grid">{featureCards.map((feature) => { const Icon = featureIcons[feature.icon]; return <Card key={feature.key} className="feature-card"><div className="feature-icon"><Icon size={22} /></div><div className="feature-copy"><div className="card-title-row"><h3>{feature.title}</h3><StatusPill tone={feature.tone}>{feature.status}</StatusPill></div><p>{feature.summary}</p></div><button className="secondary-button" onClick={() => onNavigate(feature.key as NavKey)}>{t("view")}<ChevronRight size={17} /></button></Card>; })}</div><Card className="notice-card"><BadgeInfo size={21} /><div><strong>后期模块的共同原则</strong><p>记录事实、明确负责人、保留审计轨迹。投诉、评价和劳动规则不会自动替店长做最终判断。</p></div></Card></div>;
+}
+
+function IncidentsPage() {
+  const [resolved, setResolved] = useState(false);
+  return <FeaturePage eyebrow="Customer care" title="接客与カスタマーハラスメント" description="先记录事实，再决定是否需要店长或总部介入。"><div className="feature-summary"><StatusPill tone={resolved ? "normal" : "danger"}>{resolved ? "已完成记录" : "1件待确认"}</StatusPill><span>不要求员工当场判断对方是否属于骚扰，只记录行为和影响。</span></div><Card className="incident-card"><div className="card-title-row"><div><p className="eyebrow">今日 11:20 · 前台</p><h3>关于等待时间的强烈投诉</h3></div><StatusPill tone="danger">需要店长确认</StatusPill></div><div className="tag-row"><span>事实记录</span><span>员工保护</span><span>不公开个人信息</span></div><p>顾客提高音量并持续要求退款。员工已请店长接手，未发生身体接触。</p><div className="meta"><span>报告人：王 小雨</span><span>附件：现场照片 1张</span></div><button className="primary-button" onClick={() => setResolved(true)}><CheckCircle2 size={17} />{resolved ? "已记录处理结果" : "确认并记录处理结果"}</button></Card></FeaturePage>;
+}
+
+function ReservationsPage() {
+  const [showCanceled, setShowCanceled] = useState(false);
+  return <FeaturePage eyebrow="Reservations" title="预约与无断キャンセル" description="把预约确认、到店状态和取消原因放在同一张卡片里。"><div className="reservation-toolbar"><button className={showCanceled ? "ghost-button" : "primary-button"} onClick={() => setShowCanceled(false)}>今日预约 12组</button><button className={showCanceled ? "primary-button" : "ghost-button"} onClick={() => setShowCanceled(true)}>取消记录 2件</button></div><div className="reservation-list">{(showCanceled ? [{ time: "昨日 19:00", name: "佐々木様", party: "4名", status: "无断キャンセル", tone: "danger" as const }] : [{ time: "12:00", name: "田中様", party: "2名", status: "确认済み", tone: "normal" as const }, { time: "18:30", name: "山本様", party: "6名", status: "到店前确认", tone: "warning" as const }]).map((reservation) => <Card key={reservation.time + reservation.name} className="reservation-row"><div className="reservation-time">{reservation.time}</div><div><strong>{reservation.name}</strong><span>{reservation.party} · 电话预约</span></div><StatusPill tone={reservation.tone}>{reservation.status}</StatusPill><button className="ghost-button">打开卡片</button></Card>)}</div></FeaturePage>;
+}
+
+function EquipmentPage() {
+  const [fixed, setFixed] = useState<string[]>([]);
+  return <FeaturePage eyebrow="Maintenance" title="设备维修" description="照片、症状、负责人和预计恢复时间一次提交。"><div className="equipment-list">{[{ id: "fridge", name: "冷蔵庫2番", issue: "门关闭不严，温度需要复查", owner: "田中 蓮", status: "维修中", tone: "warning" as const }, { id: "hood", name: "排烟フード", issue: "风量偏弱，已预约检查", owner: "供应商待确认", status: "待安排", tone: "neutral" as const }].map((item) => { const done = fixed.includes(item.id); return <Card key={item.id} className="equipment-row"><div className="equipment-photo"><Camera size={23} /><span>照片</span></div><div className="feature-copy"><div className="card-title-row"><h3>{item.name}</h3><StatusPill tone={done ? "normal" : item.tone}>{done ? "已修复" : item.status}</StatusPill></div><p>{item.issue}</p><div className="meta"><span>负责人：{item.owner}</span><span>更新时间：10:25</span></div></div><button className="secondary-button" onClick={() => setFixed((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])}>{done ? "重新打开" : "标记已修复"}</button></Card>; })}</div></FeaturePage>;
+}
+
+function AllergensPage() {
+  const [confirmed, setConfirmed] = useState<string[]>([]);
+  return <FeaturePage eyebrow="Food safety" title="过敏原与特殊饮食" description="重要单词保留日语，交接时明确确认人，不依赖颜色单独判断。"><Card><div className="section-heading"><div><h3>今日特殊要求</h3><p className="muted">服务前必须由前台与后厨共同确认</p></div><StatusPill tone="warning">2件待确认</StatusPill></div><div className="allergen-list">{[{ id: "a1", guest: "18:30 佐々木様", request: "花生（落花生）过敏 · 不使用同一勺具" }, { id: "a2", guest: "19:00 山本様", request: "不含猪肉（豚肉なし）" }].map((item) => { const done = confirmed.includes(item.id); return <div className={`allergen-row ${done ? "done" : ""}`} key={item.id}><ShieldCheck size={21} /><div><strong>{item.guest}</strong><span>{item.request}</span></div><button className={done ? "ghost-button" : "primary-button"} onClick={() => setConfirmed((current) => done ? current.filter((id) => id !== item.id) : [...current, item.id])}>{done ? "已确认" : "确认交接"}</button></div>; })}</div></Card></FeaturePage>;
+}
+
+function CrossStorePage() {
+  const [response, setResponse] = useState(false);
+  return <FeaturePage eyebrow="Cross-store support" title="跨店支援" description="支援请求只显示给符合技能、时间、工时和通勤条件的员工。"><Card className="support-card"><div className="card-title-row"><div><p className="eyebrow"><Building2 size={14} />新大阪店 → 大阪中央店</p><h3>11/1 17:00–21:00 · 锅场辅助</h3></div><StatusPill tone="warning">回复截止 10/31 12:00</StatusPill></div><p>预计通勤 22 分钟 · 需要“可辅助”以上技能 · 不影响原门店班次。</p><div className="support-actions"><button className={response ? "selected" : ""} onClick={() => setResponse(true)}>{response ? "已表示可以支援" : "可以支援"}</button><button onClick={() => setResponse(false)}>抱歉，今天有事</button></div></Card></FeaturePage>;
+}
+
+function EvaluationsPage() {
+  const [saved, setSaved] = useState(false);
+  return <FeaturePage eyebrow="People development" title="员工评价" description="以事实、技能和下一步目标记录成长，不做公开排行榜。"><div className="evaluation-grid">{[{ name: "王 小雨", role: "配膳 · レジ", goal: "独立完成高峰期收银" }, { name: "Alex Chen", role: "新人 · 配膳练习中", goal: "完成卫生与安全教材" }].map((employee) => <Card key={employee.name} className="evaluation-card"><div className="employee-head"><span className="large-avatar">{employee.name.slice(0, 1)}</span><div><h3>{employee.name}</h3><p>{employee.role}</p></div><Star size={20} className="star-icon" /></div><div className="rating-row"><span>技能表现</span><strong>可辅助</strong></div><div className="rating-row"><span>下一步目标</span><strong>{employee.goal}</strong></div><button className="secondary-button full" onClick={() => setSaved(true)}>{saved ? "已保存本月记录" : "保存评价记录"}</button></Card>)}</div></FeaturePage>;
+}
+
+function FeaturePage({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children: React.ReactNode }) {
+  return <div className="page-stack"><div className="page-title"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2><p>{description}</p></div></div>{children}</div>;
 }
 
 function TodayPage({ onNavigate }: { onNavigate: (key: NavKey) => void }) {
@@ -223,7 +265,7 @@ function StaffHome() {
 }
 
 export default function App() {
-  const validRoutes = useMemo(() => new Set<NavKey>(navItems.map((item) => item.key)), []);
+  const validRoutes = useMemo(() => new Set<NavKey>([...navItems.map((item) => item.key), "incidents", "reservations", "equipment", "allergens", "crossStore", "evaluations"]), []);
   const [active, setActive] = useState<NavKey>(() => {
     const route = window.location.hash.replace("#/", "") as NavKey;
     return validRoutes.has(route) ? route : "today";
@@ -250,6 +292,13 @@ export default function App() {
     if (active === "chat") return <ChatPage />;
     if (active === "employees") return <EmployeesPage />;
     if (active === "closeout") return <CloseoutPage />;
+    if (active === "more") return <MorePage onNavigate={navigate} />;
+    if (active === "incidents") return <IncidentsPage />;
+    if (active === "reservations") return <ReservationsPage />;
+    if (active === "equipment") return <EquipmentPage />;
+    if (active === "allergens") return <AllergensPage />;
+    if (active === "crossStore") return <CrossStorePage />;
+    if (active === "evaluations") return <EvaluationsPage />;
     return <SettingsPage colorAssist={colorAssist} setColorAssist={(value) => { setColorAssist(value); localStorage.setItem("colorAssist", String(value)); }} />;
   }, [active, colorAssist, role]);
   return <div className={`app-shell ${colorAssist ? "color-assist" : ""}`} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()}><Navigation active={active} onChange={navigate} role={role} /><main><Header role={role} colorAssist={colorAssist} setRole={(next) => { setRole(next); if (next === "staff" && ["employees", "closeout"].includes(active)) navigate("today"); }} /><div className="content">{page}</div></main></div>;
