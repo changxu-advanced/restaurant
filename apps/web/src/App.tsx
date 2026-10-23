@@ -45,6 +45,8 @@ const availabilityBlocks = [
 const allAvailabilityIds = availabilityBlocks.map((block) => block.id);
 const daytimeAvailabilityIds = availabilityBlocks.filter((block) => block.tone !== "late").map((block) => block.id);
 const nightAvailabilityIds = availabilityBlocks.filter((block) => block.id === "18" || block.id === "19" || block.id === "20" || block.id === "21" || block.id === "22" || block.tone === "late").map((block) => block.id);
+type RangeAction = "add" | "remove";
+type RangeStart = { blockId: string; action: RangeAction };
 
 function Brand() {
   return (
@@ -205,38 +207,43 @@ function SchedulePage() {
   const { t } = useTranslation();
   const [availability, setAvailability] = useState<Record<string, string[]>>(() => Object.fromEntries(availabilityDays.map((day, index) => [day, index === 2 ? [] : index === 5 ? ["12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "00"] : index === 6 ? ["09", "10", "11", "12"] : ["prep", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]])));
   const [mobileDay, setMobileDay] = useState(availabilityDays[0]);
-  const [rangeStart, setRangeStart] = useState<Record<string, string | null>>(() => Object.fromEntries(availabilityDays.map((day) => [day, null])));
+  const [rangeStart, setRangeStart] = useState<Record<string, RangeStart | null>>(() => Object.fromEntries(availabilityDays.map((day) => [day, null])));
   const [status, setStatus] = useState<"idle" | "running" | "ready">("idle");
   const generate = () => { setStatus("running"); window.setTimeout(() => setStatus("ready"), 900); };
   const toggleBlock = (day: string, blockId: string) => {
     const selected = availability[day] ?? [];
     const currentRangeStart = rangeStart[day];
-    if (selected.includes(blockId)) {
+    if (currentRangeStart) {
+      const startIndex = availabilityBlocks.findIndex((block) => block.id === currentRangeStart.blockId);
+      const endIndex = availabilityBlocks.findIndex((block) => block.id === blockId);
+      const [from, to] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+      const rangeIds: string[] = availabilityBlocks.slice(from, to + 1).map((block) => block.id);
       setRangeStart((current) => ({ ...current, [day]: null }));
+      setAvailability((current) => ({
+        ...current,
+        [day]: currentRangeStart.action === "remove"
+          ? current[day].filter((id) => !rangeIds.includes(id))
+          : Array.from(new Set([...current[day], ...rangeIds]))
+      }));
+      return;
+    }
+    if (selected.includes(blockId)) {
+      setRangeStart((current) => ({ ...current, [day]: { blockId, action: "remove" } }));
       setAvailability((current) => ({ ...current, [day]: current[day].filter((id) => id !== blockId) }));
       return;
     }
-    if (currentRangeStart) {
-      const startIndex = availabilityBlocks.findIndex((block) => block.id === currentRangeStart);
-      const endIndex = availabilityBlocks.findIndex((block) => block.id === blockId);
-      const [from, to] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
-      const filledIds = availabilityBlocks.slice(from, to + 1).map((block) => block.id);
-      setRangeStart((current) => ({ ...current, [day]: null }));
-      setAvailability((current) => ({ ...current, [day]: Array.from(new Set([...current[day], ...filledIds])) }));
-      return;
-    }
-    setRangeStart((current) => ({ ...current, [day]: blockId }));
+    setRangeStart((current) => ({ ...current, [day]: { blockId, action: "add" } }));
     setAvailability((current) => ({ ...current, [day]: [...current[day], blockId] }));
   };
   const applyWeekdays = () => {
-    setRangeStart((current) => Object.fromEntries(availabilityDays.map((day) => [day, current[day] ?? null])));
+    setRangeStart(() => Object.fromEntries(availabilityDays.map((day) => [day, null])));
     setAvailability((current) => ({
       ...current,
       ...Object.fromEntries(availabilityDays.slice(0, 5).map((day) => [day, daytimeAvailabilityIds]))
     }));
   };
   const copyPreviousDay = () => {
-    setRangeStart((current) => Object.fromEntries(availabilityDays.map((day) => [day, current[day] ?? null])));
+    setRangeStart(() => Object.fromEntries(availabilityDays.map((day) => [day, null])));
     setAvailability((current) => Object.fromEntries(availabilityDays.map((day, index) => [day, index === 0 ? current[day] : [...current[availabilityDays[index - 1]]]])));
   };
   const applyPreset = (blockIds: string[]) => {
@@ -248,13 +255,13 @@ function SchedulePage() {
       <div className="two-column">
         <Card className="availability-card">
           <div className="section-heading"><div><h3>{t("availability")}</h3><p className="muted">店舗設定済みの時間帯をタップして選択</p></div><div className="button-row desktop-actions"><button className="text-button" onClick={copyPreviousDay}>前日をコピー</button><button className="text-button" onClick={applyWeekdays}>平日を一括設定</button></div></div>
-          <div className="time-legend" aria-label="時間帯の区分"><span className="prep">準備時間</span><span className="normal">通常営業</span><span className="late">深夜時間</span><small>最初と最後の時間帯を選ぶと中間を自動補全 · 選択中は濃く表示</small></div>
-          <div className="availability-grid desktop-availability">{availabilityDays.map((day) => <div className="availability-row" key={day}><strong>{day}</strong><div className="time-scroll"><div className="time-blocks">{availabilityBlocks.map((block) => { const selected = availability[day].includes(block.id); const isRangeStart = rangeStart[day] === block.id; return <button key={block.id} type="button" aria-pressed={selected} aria-label={`${day} ${block.time}`} className={`time-block ${block.tone} ${selected ? "selected" : ""} ${isRangeStart ? "range-start" : ""}`} onClick={() => toggleBlock(day, block.id)}><span>{selected ? "✓" : "○"} {block.label}</span><time>{block.time}</time></button>; })}</div></div></div>)}</div>
+          <div className="time-legend" aria-label="時間帯の区分"><span className="prep">準備時間</span><span className="normal">通常営業</span><span className="late">深夜時間</span><small>首尾两端自动补全或取消中间时段 · 选中时显示深色</small></div>
+          <div className="availability-grid desktop-availability">{availabilityDays.map((day) => <div className="availability-row" key={day}><strong>{day}</strong><div className="time-scroll"><div className="time-blocks">{availabilityBlocks.map((block) => { const selected = availability[day].includes(block.id); const isRangeStart = rangeStart[day]?.blockId === block.id; return <button key={block.id} type="button" aria-pressed={selected} aria-label={`${day} ${block.time}`} className={`time-block ${block.tone} ${selected ? "selected" : ""} ${isRangeStart ? "range-start" : ""}`} onClick={() => toggleBlock(day, block.id)}><span>{selected ? "✓" : "○"} {block.label}</span><time>{block.time}</time></button>; })}</div></div></div>)}</div>
           <div className="mobile-availability">
             <div className="mobile-day-tabs" role="tablist" aria-label="希望日を選択">{availabilityDays.map((day) => <button key={day} role="tab" aria-selected={mobileDay === day} className={mobileDay === day ? "active" : ""} onClick={() => setMobileDay(day)}><strong>{day.split(" ")[0]}</strong><span>{day.split(" ")[1]}</span><small>{availability[day].length}</small></button>)}</div>
-            <div className="mobile-day-heading"><div><strong>{mobileDay}</strong><span>{rangeStart[mobileDay] ? "再选择结束时间，自动补全中间时段" : `${availability[mobileDay].length} / ${availabilityBlocks.length} 时间段已选择 · 点击首尾自动补全`}</span></div><button className="text-button" onClick={applyWeekdays}>平日に反映</button></div>
+            <div className="mobile-day-heading"><div><strong>{mobileDay}</strong><span>{rangeStart[mobileDay]?.action === "remove" ? "再选择结束时间，自动取消中间时段" : rangeStart[mobileDay] ? "再选择结束时间，自动补全中间时段" : `${availability[mobileDay].length} / ${availabilityBlocks.length} 时间段已选择 · 点击首尾自动补全或取消`}</span></div><button className="text-button" onClick={applyWeekdays}>平日に反映</button></div>
             <div className="mobile-presets"><button onClick={() => applyPreset(allAvailabilityIds)}>全时间</button><button onClick={() => applyPreset(daytimeAvailabilityIds)}>日中</button><button onClick={() => applyPreset(nightAvailabilityIds)}>夜</button><button onClick={() => applyPreset([])}>クリア</button></div>
-            <div className="mobile-time-blocks">{availabilityBlocks.map((block) => { const selected = availability[mobileDay].includes(block.id); const isRangeStart = rangeStart[mobileDay] === block.id; return <button key={block.id} type="button" aria-pressed={selected} aria-label={`${mobileDay} ${block.time}`} className={`time-block ${block.tone} ${selected ? "selected" : ""} ${isRangeStart ? "range-start" : ""}`} onClick={() => toggleBlock(mobileDay, block.id)}><span>{selected ? "✓" : "○"} {block.label}</span><time>{block.time}</time></button>; })}</div>
+            <div className="mobile-time-blocks">{availabilityBlocks.map((block) => { const selected = availability[mobileDay].includes(block.id); const isRangeStart = rangeStart[mobileDay]?.blockId === block.id; return <button key={block.id} type="button" aria-pressed={selected} aria-label={`${mobileDay} ${block.time}`} className={`time-block ${block.tone} ${selected ? "selected" : ""} ${isRangeStart ? "range-start" : ""}`} onClick={() => toggleBlock(mobileDay, block.id)}><span>{selected ? "✓" : "○"} {block.label}</span><time>{block.time}</time></button>; })}</div>
           </div>
           <div className="card-footer"><span className="muted">店舗固定 17時間帯 · 自動保存</span><StatusPill tone="normal">✓ 提出済み</StatusPill></div>
         </Card>

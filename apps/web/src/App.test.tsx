@@ -69,5 +69,18 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "10/28 水 10:00–11:00" })[0]);
     expect(screen.getAllByRole("button", { name: "10/28 水 10:00–11:00" })[0]).toHaveAttribute("aria-pressed", "false");
   });
+
+  it("cancels the selected time range between two points", () => {
+    window.location.hash = "#/schedule";
+    render(<MemoryRouter><App /></MemoryRouter>);
+    const start = screen.getAllByRole("button", { name: "10/29 木 08:00–09:00" })[0];
+    const end = screen.getAllByRole("button", { name: "10/29 木 12:00–13:00" })[0];
+    const middle = screen.getAllByRole("button", { name: "10/29 木 10:00–11:00" })[0];
+    fireEvent.click(start);
+    expect(start).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(end);
+    expect(end).toHaveAttribute("aria-pressed", "false");
+    expect(middle).toHaveAttribute("aria-pressed", "false");
+  });
 });
 
