@@ -7,6 +7,17 @@ export default defineConfig({
   test: {
     environment: "jsdom"
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          "query-vendor": ["@tanstack/react-query"],
+          "icons-vendor": ["lucide-react"]
+        }
+      }
+    }
+  },
   plugins: [
     react(),
     VitePWA({
