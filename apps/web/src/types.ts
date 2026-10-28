@@ -5,7 +5,7 @@ export type Availability = "desired" | "available" | "unavailable";
 export interface Employee {
   id: string;
   name: string;
-  initials: string;
+  initials?: string;
   role: string;
   skills: string[];
   weeklyMinutes: number;
