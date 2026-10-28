@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">advn</title>
+  <rect width="128" height="128" rx="30" fill="#FFFBF5"/>
+  <path d="M24 43c0-8 6-14 14-14h52c8 0 14 6 14 14v42c0 8-6 14-14 14H38c-8 0-14-6-14-14V43Z" fill="#C7683A"/>
+  <path d="M38 48h52M38 64h34M38 80h43" stroke="#FFFBF5" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="91" cy="80" r="7" fill="#D9B56D"/>
+  <text x="64" y="119" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#302A25">advn</text>
+</svg>
+

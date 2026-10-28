@@ -1,0 +1,14 @@
+{
+  "name": "restaurant-ops-system",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "pnpm --filter @restaurant-ops/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "infra:synth": "pnpm --filter @restaurant-ops/cdk synth"
+  }
+}
+

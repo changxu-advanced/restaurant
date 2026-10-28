@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: restaurant_ops
+      POSTGRES_USER: restaurant_ops
+      POSTGRES_PASSWORD: restaurant_ops
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U restaurant_ops"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - restaurant_ops_db:/var/lib/postgresql/data
+
+  api:
+    build: ./apps/api
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_URL: jdbc:postgresql://db:5432/restaurant_ops
+      DB_USERNAME: restaurant_ops
+      DB_PASSWORD: restaurant_ops
+      AWS_REGION: ap-northeast-1
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  scheduler:
+    build: ./services/scheduler
+    environment:
+      APP_MODE: http
+      AWS_REGION: ap-northeast-1
+    ports:
+      - "8090:8090"
+
+  api-test:
+    profiles: [test]
+    build:
+      context: ./apps/api
+      target: build
+    command: ["gradle", "test", "--no-daemon"]
+
+  scheduler-test:
+    profiles: [test]
+    build: ./services/scheduler
+    command: ["pytest", "-q"]
+
+volumes:
+  restaurant_ops_db:
+
