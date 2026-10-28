@@ -1,4 +1,4 @@
-export type NavKey = "today" | "schedule" | "inventory" | "chat" | "employees" | "closeout" | "settings";
+export type NavKey = "today" | "schedule" | "inventory" | "chat" | "employees" | "closeout" | "settings" | "more" | "incidents" | "reservations" | "equipment" | "allergens" | "crossStore" | "evaluations";
 export type StockState = "enough" | "low" | "urgent" | "out";
 export type Availability = "desired" | "available" | "unavailable";
 

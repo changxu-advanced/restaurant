@@ -124,7 +124,7 @@ main { grid-column: 2; min-width: 0; }
 .time-legend .late { color: #9a3d32; background: #f8dfda; }
 .time-legend small { margin-left: auto; color: var(--muted); }
 .time-scroll { min-width: 0; overflow-x: auto; padding: 4px 2px 7px; scrollbar-width: thin; }
-.time-blocks { min-width: 724px; display: grid; grid-template-columns: repeat(7, minmax(92px, 1fr)); gap: 5px; }
+.time-blocks { min-width: 1180px; display: grid; grid-template-columns: repeat(17, minmax(64px, 1fr)); gap: 5px; }
 .time-block { min-height: 58px; display: grid; align-content: center; gap: 3px; padding: 7px 5px; border: 1px solid currentColor; border-radius: 9px; opacity: .28; color: var(--text); }
 .time-block span { font-size: 12px; font-weight: 700; }
 .time-block time { font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -133,6 +133,7 @@ main { grid-column: 2; min-width: 0; }
 .time-block.late { color: #8f2f25; background: #e9a197; }
 .time-block:hover { opacity: .68; box-shadow: 0 4px 10px rgba(48,42,37,.1); }
 .time-block.selected { opacity: 1; border-width: 2px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.68), 0 3px 8px rgba(48,42,37,.12); }
+.time-block.range-start { outline: 3px dashed var(--primary); outline-offset: 2px; }
 .mobile-availability { display: none; }
 .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px; border-radius: 12px; background: #f2ece4; }
 .segmented button, .stock-buttons button { min-height: 40px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--muted); font-size: 13px; }
@@ -226,6 +227,42 @@ main { grid-column: 2; min-width: 0; }
 .learning-row span { color: var(--muted); font-size: 13px; }
 .bottom-nav { display: none; }
 
+.feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.feature-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 15px; }
+.feature-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 12px; color: var(--primary); background: #f2e8dc; }
+.feature-copy { min-width: 0; }
+.feature-copy p { margin: 7px 0 0; }
+.notice-card { display: flex; align-items: flex-start; gap: 12px; background: #f8f1e8; }
+.notice-card > svg { flex: 0 0 auto; color: var(--primary); }
+.notice-card p { margin: 5px 0 0; }
+.feature-summary { display: flex; align-items: center; gap: 12px; color: var(--muted); }
+.incident-card { display: grid; gap: 14px; max-width: 900px; border-left: 4px solid var(--danger); }
+.incident-card p { margin: 0; }
+.incident-card .primary-button { justify-self: start; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.tag-row span { padding: 6px 9px; border-radius: 7px; background: #f1ebe3; color: var(--muted); font-size: 12px; }
+.reservation-toolbar { display: flex; gap: 8px; }
+.reservation-list, .equipment-list { display: grid; gap: 12px; max-width: 980px; }
+.reservation-row { display: grid; grid-template-columns: 100px minmax(0, 1fr) auto auto; align-items: center; gap: 16px; }
+.reservation-time { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.reservation-row > div:nth-child(2) { display: grid; gap: 4px; }
+.reservation-row > div:nth-child(2) span { color: var(--muted); font-size: 13px; }
+.equipment-row { display: grid; grid-template-columns: 100px minmax(0, 1fr) auto; align-items: center; gap: 16px; }
+.equipment-photo { min-height: 88px; display: grid; place-items: center; align-content: center; gap: 4px; border-radius: 11px; color: var(--muted); background: repeating-linear-gradient(135deg,#e8e0d6,#e8e0d6 8px,#f2ece4 8px,#f2ece4 16px); font-size: 12px; }
+.equipment-photo svg { color: var(--primary); }
+.equipment-row p { margin: 7px 0; }
+.allergen-list { display: grid; margin-top: 14px; }
+.allergen-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 15px 0; border-top: 1px solid #eee5da; }
+.allergen-row > svg { color: var(--danger); }
+.allergen-row > div { display: grid; gap: 4px; }
+.allergen-row span { color: var(--muted); font-size: 13px; }
+.allergen-row.done > svg { color: var(--success); }
+.evaluation-grid { display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 16px; max-width: 980px; }
+.evaluation-card { display: grid; gap: 16px; }
+.star-icon { margin-left: auto; color: var(--warning); }
+.rating-row { display: flex; justify-content: space-between; gap: 14px; padding-bottom: 11px; border-bottom: 1px solid #eee5da; }
+.rating-row span { color: var(--muted); }
+
 .color-assist {
   --primary: #6b3f72;
   --primary-hover: #4f2e56;
@@ -274,6 +311,16 @@ main { grid-column: 2; min-width: 0; }
   .operation-card > button { grid-column: 1 / -1; width: 100%; }
   .card-title-row { align-items: flex-start; }
   .side-column, .employee-grid, .metric-grid { grid-template-columns: 1fr; }
+  .feature-grid, .evaluation-grid { grid-template-columns: 1fr; }
+  .feature-card { grid-template-columns: auto 1fr; align-items: start; }
+  .feature-card > button { grid-column: 1 / -1; width: 100%; }
+  .reservation-row, .equipment-row { grid-template-columns: 1fr auto; align-items: start; }
+  .reservation-row .reservation-time { grid-column: 1 / -1; }
+  .reservation-row > .ghost-button, .equipment-row > button { grid-column: 1 / -1; width: 100%; }
+  .allergen-row { grid-template-columns: auto 1fr; align-items: start; }
+  .allergen-row > button { grid-column: 1 / -1; width: 100%; }
+  .reservation-toolbar { width: 100%; }
+  .reservation-toolbar button { flex: 1; }
   .availability-row { grid-template-columns: 1fr; }
   .availability-card .section-heading { align-items: flex-start; flex-direction: column; }
   .availability-card .desktop-actions, .desktop-availability { display: none; }

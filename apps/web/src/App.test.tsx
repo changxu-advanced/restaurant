@@ -38,5 +38,49 @@ describe("App", () => {
     render(<MemoryRouter><App /></MemoryRouter>);
     expect(fireEvent.copy(screen.getByRole("heading", { name: "飲食業オンライン管理システム" }))).toBe(false);
   });
+
+  it("opens the second-version exception modules from More", () => {
+    render(<MemoryRouter><App /></MemoryRouter>);
+    fireEvent.click(screen.getAllByRole("button", { name: /その他/ })[0]);
+    expect(screen.getByRole("heading", { name: "その他" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /確認する/ })[0]);
+    expect(screen.getByRole("heading", { name: "接客・カスタマーハラスメント" })).toBeInTheDocument();
+  });
+
+  it("confirms an allergen handover without relying on color", () => {
+    window.location.hash = "#/allergens";
+    render(<MemoryRouter><App /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: "アレルゲン・特別食" })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "引き継ぎを確認" })[0]);
+    expect(screen.getAllByRole("button", { name: "確認済み" })[0]).toBeInTheDocument();
+  });
+
+  it("fills the time range between two selected hourly blocks", () => {
+    window.location.hash = "#/schedule";
+    render(<MemoryRouter><App /></MemoryRouter>);
+    fireEvent.click(screen.getAllByRole("tab")[2]);
+    const start = screen.getAllByRole("button", { name: "10/28 水 08:00–09:00" })[0];
+    const end = screen.getAllByRole("button", { name: "10/28 水 12:00–13:00" })[0];
+    fireEvent.click(start);
+    fireEvent.click(end);
+    expect(start).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("button", { name: "10/28 水 09:00–10:00" })[0]).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("button", { name: "10/28 水 11:00–12:00" })[0]).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getAllByRole("button", { name: "10/28 水 10:00–11:00" })[0]);
+    expect(screen.getAllByRole("button", { name: "10/28 水 10:00–11:00" })[0]).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("cancels the selected time range between two points", () => {
+    window.location.hash = "#/schedule";
+    render(<MemoryRouter><App /></MemoryRouter>);
+    const start = screen.getAllByRole("button", { name: "10/29 木 08:00–09:00" })[0];
+    const end = screen.getAllByRole("button", { name: "10/29 木 12:00–13:00" })[0];
+    const middle = screen.getAllByRole("button", { name: "10/29 木 10:00–11:00" })[0];
+    fireEvent.click(start);
+    expect(start).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(end);
+    expect(end).toHaveAttribute("aria-pressed", "false");
+    expect(middle).toHaveAttribute("aria-pressed", "false");
+  });
 });
 
