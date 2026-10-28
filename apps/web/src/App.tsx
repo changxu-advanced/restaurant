@@ -9,6 +9,7 @@ import { featureCards, initialInventory, shifts } from "./demoData";
 import { useCreateEmployee, useDeactivateEmployee, useEmployee, useEmployees, usePlaceEmployeeOnLeave, useReactivateEmployee, useStoreSettings, useUpdateEmployee } from "./employeeApi";
 import type { InventoryItem, NavKey, StockState } from "./types";
 import { formatBackToTopParts } from "./employeeFormatting";
+import { employeeStatusLabel, laborRuleLabel, localizedLaborReason, preferenceLabel, residenceStatusLabel, roleTitleLabel, skillLevelLabel, skillPositionLabel, trainingKeyLabel, trainingStatusLabel } from "./employeePresentation";
 
 const navItems: Array<{ key: NavKey; icon: typeof LayoutDashboard; managerOnly?: boolean }> = [
   { key: "today", icon: LayoutDashboard },
@@ -360,110 +361,6 @@ const attendanceWeekdays: Record<string, string[]> = {
   ko: ["월", "화", "수", "목", "금", "토", "일"],
   vi: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
 };
-
-function localizedLaborReason(employee: { warning: { level: string }; laborMonitor?: { basis: string } }, t: (key: string) => string): string {
-  if (employee.laborMonitor?.basis === "MONTHLY_OVERTIME") {
-    return employee.warning.level === "ACTION" ? t("monthlyOvertimeOver") : employee.warning.level === "APPROACHING" ? t("monthlyOvertimeNear") : t("monthlyOvertimeWithin");
-  }
-  if (employee.laborMonitor?.basis === "PART_TIME_NO_IMMIGRATION_CAP") return t("regularPartTimeNoCap");
-  return employee.warning.level === "ACTION" ? t("weeklyLimitOver") : employee.warning.level === "APPROACHING" ? t("weeklyLimitNear") : t("weeklyLimitWithin");
-}
-
-function employeeStatusLabel(value: string, t: (key: string) => string): string {
-  const labels: Record<string, string> = { ACTIVE: t("statusActive"), ON_LEAVE: t("statusOnLeave"), INACTIVE: t("statusInactive") };
-  return labels[value] ?? t("unknownStatus");
-}
-
-function laborRuleLabel(value: string, t: (key: string) => string): string {
-  const labels: Record<string, string> = { FULL_TIME: t("laborRuleFullTime"), SPECIFIED_SKILLED: t("laborRuleSpecified"), PART_TIME: t("laborRulePartTime"), STUDENT_PART_TIME: t("laborRuleStudent") };
-  return labels[value] ?? t("unknownStatus");
-}
-
-function residenceStatusLabel(value: string, t: (key: string) => string): string {
-  const labels: Record<string, string> = {
-    "留学": t("residenceStudent"),
-    "特定技能": t("residenceSpecified"),
-    "技術・人文知識・国際業務": t("residenceEngineer"),
-    "永住者": t("residencePermanent"),
-    "日本人の配偶者等": t("residenceSpouse"),
-    "定住者": t("residenceLongTerm"),
-    "家族滞在": t("residenceFamily"),
-    "なし": t("residenceNone")
-  };
-  return labels[value] ?? t("unknownStatus");
-}
-
-function roleTitleLabel(value: string, t: (key: string) => string): string {
-  const labels: Record<string, string> = {
-    "店長": t("roleManager"),
-    "副店長": t("roleDeputyManager"),
-    "ホールリーダー": t("roleHallLeader"),
-    "ホール担当": t("roleHall"),
-    "ホール兼務": t("roleFrontPartTime"),
-    "地元ホール担当": t("roleHall"),
-    "店長補佐": t("roleDeputyManager"),
-    "調理リーダー": t("roleKitchenLeader"),
-    "調理担当": t("roleKitchenLeader"),
-    "調理主任": t("roleKitchenLeader"),
-    "調理補助": t("skillCookingSupport"),
-    "麺場リーダー": t("roleNoodleLeader"),
-    "深夜統括": t("roleNoodleLeader"),
-    "深夜責任者": t("roleNoodleLeader"),
-    "ホール": t("roleHall"),
-    "ホール新人": t("roleHallNewcomer"),
-    "ホールサポート": t("roleHallSupport"),
-    "留学生アルバイト": t("roleStudentPartTime"),
-    "アルバイト": t("rolePartTime"),
-    "洗い場・仕込み": t("roleDishwashingPrep"),
-    "後厨房アルバイト": t("roleKitchenPartTime"),
-    "前台兼职": t("roleFrontPartTime"),
-    "后厨兼职": t("roleKitchenPartTime"),
-    "洗場サポート": t("roleDishwashingSupport"),
-    "洗い場サポート": t("roleDishwashingSupport"),
-    "洗い場": t("skillDishwashing"),
-    "仕込み補助": t("skillPrepSupport"),
-    "閉店清掃": t("skillClosingCleaning"),
-    "新人スタッフ": t("roleHallNewcomer"),
-    "教育担当": t("skillNewcomerTraining"),
-    "留学生ホール": t("roleStudentPartTime"),
-    "留学生レジ": t("roleStudentPartTime"),
-    "留学生キッチン": t("roleStudentPartTime"),
-    "留学生調理補助": t("roleStudentPartTime"),
-    "特定技能調理": t("roleKitchenLeader"),
-    "ランチ責任者": t("roleKitchenLeader")
-  };
-  return labels[value] ?? (/^[A-Z_]+$/.test(value) || /[\u3040-\u30ff\u3400-\u9fff]/.test(value) ? t("unknownStatus") : value);
-}
-
-function skillPositionLabel(value: string, t: (key: string) => string): string {
-  const labels: Record<string, string> = {
-    "ホール": t("roleHall"), "レジ": t("skillRegister"), "発注": t("ordering"), "鍋場": t("skillWok"), "油場": t("skillFryer"),
-    "新人指導": t("skillNewcomerTraining"), "新人帯教": t("skillNewcomerTraining"), "新人带教": t("skillNewcomerTraining"), "配膳": t("skillServing"), "麺場": t("skillWok"), "麺場補助": t("skillNoodleSupport"),
-    "洗い場": t("skillDishwashing"), "洗い場サポート": t("roleDishwashingSupport"), "洗場サポート": t("roleDishwashingSupport"), "仕込み": t("skillPrep"), "仕込み補助": t("skillPrepSupport"), "迎賓": t("skillWelcome"), "外卖": t("skillTakeout"), "外販": t("skillTakeout"),
-    "深夜責任者": t("roleNoodleLeader"), "ホール指導": t("skillHallCoaching"), "清掃": t("skillCleaning"), "閉店清掃": t("skillClosingCleaning"), "閉店": t("skillClosing"), "開店": t("skillOpening"), "ホール管理": t("skillHallManagement"), "調理": t("skillCooking"), "調理補助": t("skillCookingSupport"), "調理全般": t("skillCookingAll"), "接客": t("skillCustomerService"), "レジ教育": t("skillRegisterTraining")
-  };
-  return labels[value] ?? (/^[A-Z_]+$/.test(value) || /[\u3040-\u30ff\u3400-\u9fff]/.test(value) ? t("unknownStatus") : value);
-}
-
-function trainingStatusLabel(value: string, t: (key: string) => string): string {
-  const labels: Record<string, string> = { NOT_STARTED: t("notStarted"), LEARNING: t("learning"), CAN_ASSIST: t("canAssist"), INDEPENDENT: t("independent"), CAN_TRAIN: t("canTrain"), COMPLETED: t("trainingCompleted"), IN_PROGRESS: t("trainingInProgress") };
-  return labels[value] ?? t("unknownStatus");
-}
-
-function skillLevelLabel(value: string, t: (key: string) => string): string {
-  const labels: Record<string, string> = { NOT_STARTED: t("notStarted"), LEARNING: t("learning"), CAN_ASSIST: t("canAssist"), INDEPENDENT: t("independent"), CAN_TRAIN: t("canTrain") };
-  return labels[value] ?? t("unknownStatus");
-}
-
-function trainingKeyLabel(value: string, t: (key: string) => string): string {
-  const labels: Record<string, string> = { "food-safety-basics": t("foodSafetyBasics") };
-  return labels[value] ?? t("unknownStatus");
-}
-
-function preferenceLabel(value: string, t: (key: string) => string): string {
-  const labels: Record<string, string> = { AVAILABLE: t("available"), DESIRED: t("desired"), PREFERRED: t("preferred"), UNAVAILABLE: t("unavailable") };
-  return labels[value] ?? t("unknownStatus");
-}
 
 function formatDateValue(value: string | undefined, fallback: string): string {
   if (!value) return fallback;
