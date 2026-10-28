@@ -82,7 +82,7 @@ public class EmployeeController {
         var employee = new EmployeeEntity(UUID.randomUUID(), context.tenantId(), context.storeId(), request.displayName(), request.employmentType(), request.roleTitle(), 0, request.weeklyLimitMinutes(), String.join(",", request.skills()));
         employee.update(request.displayName(), request.employmentType(), request.roleTitle(), request.hourlyWageYen(), request.experienceMonths(), request.commuteMinutes(), request.phone(), request.traits(), request.notes(), request.outsideWorkMinutes(), request.residenceStatus(), request.residenceExpiryDate(), request.laborRuleCode(), request.weeklyLimitMinutes());
         repository.save(employee);
-        contractRepository.save(new EmployeeContractEntity(UUID.randomUUID(), context.tenantId(), context.storeId(), employee.getId(), request.employmentType(), LocalDate.now(), null, 0, request.contractTargetMinutesOrWeekly(), request.contractLimitMinutesOrWeekly(), false));
+        contractRepository.save(new EmployeeContractEntity(UUID.randomUUID(), context.tenantId(), context.storeId(), employee.getId(), request.employmentType(), LocalDate.now(), null, request.contractTargetMinutesOrWeekly(), request.contractLimitMinutesOrWeekly(), false));
         return toView(employee);
     }
 
