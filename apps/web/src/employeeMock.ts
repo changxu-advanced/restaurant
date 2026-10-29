@@ -62,10 +62,6 @@ function laborMonitorFor(employmentType: string, weeklyMinutes: number, outsideW
   return { basis: "WEEKLY_LIMIT", standardPeriod: "WEEK", limitMode: "HARD", studentWorkPeriod: employmentType === "STUDENT_PART_TIME" ? studentWorkPeriod : undefined, periodMinutes: actualMinutes, standardMinutes: strictLimitMinutes, overtimeMinutes: 0, overtimeLimitMinutes: 0, hardLimitMinutes: strictLimitMinutes, remainingMinutes: Math.max(0, strictLimitMinutes - actualMinutes), agreementConfigured: true, scheduleBlocked: actualMinutes >= strictLimitMinutes, scheduleBlockReason: actualMinutes >= strictLimitMinutes ? "本店と他の勤務先を合わせた週上限に達したため追加の排班不可" : undefined, warning: { level, percent, reason } };
 }
 
-function warningFor(employmentType: string, weeklyMinutes: number, outsideWorkMinutes: number, weeklyLimitMinutes: number, monthlyMinutes?: number, studentWorkPeriod: StudentWorkPeriod = "TERM"): EmployeeSummary["warning"] {
-  return laborMonitorFor(employmentType, weeklyMinutes, outsideWorkMinutes, weeklyLimitMinutes, monthlyMinutes, studentWorkPeriod).warning;
-}
-
 function record(
   id: string,
   displayName: string,
@@ -368,3 +364,4 @@ export async function updateAvailability(id: string, availability: Array<Omit<Mo
   writeRecords(records);
   return found;
 }
+

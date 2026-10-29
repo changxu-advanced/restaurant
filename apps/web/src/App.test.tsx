@@ -6,6 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import "./i18n";
 import App from "./App";
 import { getEmployee, listEmployees } from "./employeeMock";
+import { CHAT_STORAGE_KEY, resolveChatIssue } from "./chatMock";
 
 describe("App", () => {
   afterEach(() => {
@@ -70,6 +71,291 @@ describe("App", () => {
   it("prevents copying displayed content", () => {
     render(<MemoryRouter><App /></MemoryRouter>);
     expect(fireEvent.copy(screen.getByRole("heading", { name: "飲食業オンライン管理システム" }))).toBe(false);
+  });
+
+  it("gives managers chat publishing controls without staff response actions", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    expect(await screen.findByRole("heading", { name: "チャット" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /欠員支援を作成/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /問題を投稿/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /全体通知を投稿/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "支援できます" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "一部時間なら可能" })).not.toBeInTheDocument();
+  });
+
+  it("searches chat items and jumps to the selected timeline record", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    const { container } = render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    await screen.findByRole("heading", { name: "チャット" });
+    fireEvent.click(screen.getByRole("button", { name: "メッセージを検索" }));
+    const input = screen.getByRole("textbox", { name: "メッセージを検索" });
+    fireEvent.change(input, { target: { value: "冷蔵庫" } });
+    const result = container.querySelector<HTMLButtonElement>(".chat-search-result");
+    expect(result).toBeInTheDocument();
+    expect(result).toHaveTextContent("冷蔵庫");
+    const targetId = result?.dataset.targetId;
+    fireEvent.click(result!);
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" }));
+    expect(screen.queryByRole("textbox", { name: "メッセージを検索" })).not.toBeInTheDocument();
+    expect(targetId && document.getElementById(targetId)).toHaveClass("chat-search-target");
+  });
+
+  it("groups attachment search into photos and PDF filters", async () => {
+    window.location.hash = "#/chat";
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify({ items: [
+      { id: "photo-message", kind: "message", author: "山田", initials: "山", body: "照片资料", createdAt: "2026-10-22T10:25:00+09:00", attachments: [{ id: "photo", name: "menu.png", type: "image/png", url: "blob:menu" }] },
+      { id: "pdf-message", kind: "message", author: "店長", initials: "店", body: "PDF资料", createdAt: "2026-10-22T10:26:00+09:00", attachments: [{ id: "pdf", name: "manual.pdf", type: "application/pdf", url: "blob:manual" }] }
+    ] }));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    await screen.findByRole("heading", { name: "チャット" });
+    fireEvent.click(screen.getByRole("button", { name: "メッセージを検索" }));
+    fireEvent.click(screen.getByRole("button", { name: "写真" }));
+    const results = () => container.querySelector(".chat-search-results");
+    expect(results()).toHaveTextContent("menu.png");
+    expect(results()).not.toHaveTextContent("manual.pdf");
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    expect(results()).toHaveTextContent("manual.pdf");
+    expect(results()).not.toHaveTextContent("menu.png");
+  });
+
+  it("shows copy and reply actions when a message is selected", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByText("冷蔵庫2番の扉が少し閉まりにくくなっています。"));
+    const copyButton = screen.getByRole("button", { name: "コピー" });
+    expect(copyButton).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "返信" })).toBeInTheDocument();
+    const messageLine = copyButton.closest(".message-line");
+    expect(messageLine).toBeInTheDocument();
+    expect(messageLine?.querySelector(".bubble")).toBeInTheDocument();
+    expect(messageLine?.querySelector(".message-actions")).toBe(copyButton.closest(".message-actions"));
+  });
+
+  it("accepts image and PDF attachments through the picker and chat drop zone", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    await screen.findByRole("heading", { name: "チャット" });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]');
+    const chatShell = container.querySelector<HTMLElement>(".chat-shell");
+    expect(fileInput).toBeInTheDocument();
+    expect(fileInput).toHaveAttribute("accept", "image/*,.pdf");
+    expect(fileInput).toHaveAttribute("multiple");
+    expect(chatShell).toBeInTheDocument();
+    const image = new File(["image"], "photo.png", { type: "image/png" });
+    fireEvent.change(fileInput!, { target: { files: [image] } });
+    expect(screen.getByText("photo.png")).toBeInTheDocument();
+    const invalid = new File(["text"], "notes.txt", { type: "text/plain" });
+    fireEvent.change(fileInput!, { target: { files: [invalid] } });
+    expect(screen.getByRole("alert")).toHaveTextContent("画像またはPDFのみ添付できます");
+    const pdf = new File(["pdf"], "notice.pdf", { type: "application/pdf" });
+    const dataTransfer = { types: ["Files"], files: [pdf], dropEffect: "none" };
+    fireEvent.dragEnter(chatShell!, { dataTransfer });
+    expect(screen.getByRole("status")).toHaveTextContent("ここにドロップして添付");
+    fireEvent.drop(chatShell!, { dataTransfer });
+    expect(screen.getByText("notice.pdf")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "notice.pdf" }));
+    expect(screen.getByRole("dialog", { name: "notice.pdf" })).toHaveClass("is-pdf");
+    fireEvent.click(screen.getByRole("button", { name: "プレビューを閉じる" }));
+    expect(screen.queryByRole("dialog", { name: "notice.pdf" })).not.toBeInTheDocument();
+    fireEvent.change(fileInput!, { target: { files: [
+      new File(["1"], "one.png", { type: "image/png" }),
+      new File(["2"], "two.png", { type: "image/png" }),
+      new File(["3"], "three.png", { type: "image/png" }),
+      new File(["4"], "four.png", { type: "image/png" }),
+      new File(["5"], "five.png", { type: "image/png" })
+    ] } });
+    expect(screen.getByRole("alert")).toHaveTextContent(/5/);
+    fireEvent.change(screen.getByRole("textbox", { name: "メッセージを入力" }), { target: { value: "添付を送信" } });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    const sentMessage = (await screen.findByText("添付を送信")).closest(".message");
+    expect(sentMessage?.querySelectorAll(".message-attachment")).toHaveLength(5);
+    expect(sentMessage?.querySelector('img[alt="one.png"]')).toBeInTheDocument();
+    fireEvent.click(sentMessage?.querySelector<HTMLElement>(".bubble")!);
+    const attachmentActions = sentMessage?.querySelector(".message-actions");
+    expect(attachmentActions).toHaveTextContent("返信");
+    expect(attachmentActions).not.toHaveTextContent("コピー");
+    fireEvent.click(sentMessage?.querySelector<HTMLButtonElement>('button[title="one.png"]')!);
+    expect(await screen.findByRole("dialog", { name: "one.png" })).toHaveClass("is-image");
+    fireEvent.click(screen.getByRole("button", { name: "プレビューを閉じる" }));
+    expect(screen.queryByRole("dialog", { name: "one.png" })).not.toBeInTheDocument();
+    fireEvent.click(sentMessage?.querySelector<HTMLButtonElement>('button[title="notice.pdf"]')!);
+    const sentPdfDialog = await screen.findByRole("dialog", { name: "notice.pdf" });
+    expect(sentPdfDialog).toHaveClass("is-pdf");
+    expect(sentPdfDialog.querySelector("iframe")).toHaveAttribute("src", expect.stringContaining("#toolbar=0"));
+  });
+
+  it("renders notices as centered cards without message actions", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: /全体通知を投稿/ }));
+    fireEvent.change(screen.getByLabelText("全体通知"), { target: { value: "厨房の清掃を確認してください" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "全体通知を投稿" }).at(-1)!);
+    const notice = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>(".notice-card-body");
+      if (!element) throw new Error("notice card not rendered");
+      expect(element).toHaveTextContent("厨房の清掃を確認してください");
+      return element;
+    });
+    expect(notice.closest(".notice-card")).toBeInTheDocument();
+    fireEvent.click(notice);
+    expect(notice.closest(".notice-card")?.querySelector(".message-actions")).toBeNull();
+    expect(screen.queryByRole("button", { name: "コピー" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "返信" })).not.toBeInTheDocument();
+  });
+
+  it("persists manager messages and issue state in the chat mock", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    const composer = await screen.findByRole("textbox", { name: "メッセージを入力" });
+    fireEvent.change(composer, { target: { value: "冰箱门已重新检查" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    const ownMessage = await screen.findByText("冰箱门已重新检查");
+    expect(ownMessage).toBeInTheDocument();
+    expect(ownMessage.closest(".message")).toHaveClass("own");
+    fireEvent.click(ownMessage);
+    expect(screen.getByRole("button", { name: "コピー" }).closest(".message.own")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("restaurant-ops.chat-mock.v1") ?? "{}").items.some((item: { body?: string }) => item.body === "冰箱门已重新检查")).toBe(true);
+    fireEvent.click(screen.getAllByRole("button", { name: "解決にする" })[0]);
+    expect(await screen.findByRole("button", { name: "再開" })).toBeInTheDocument();
+  });
+
+  it("aligns the current role's messages to the right", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    const composer = await screen.findByRole("textbox", { name: "メッセージを入力" });
+
+    fireEvent.change(composer, { target: { value: "店长发言" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    const managerMessage = await screen.findByText("店长发言");
+    expect(managerMessage.closest(".message")).toHaveClass("own");
+
+    fireEvent.change(screen.getByDisplayValue("店長"), { target: { value: "staff" } });
+    expect(managerMessage.closest(".message")).not.toHaveClass("own");
+
+    const staffComposer = await screen.findByRole("textbox", { name: "メッセージを入力" });
+    fireEvent.change(staffComposer, { target: { value: "员工发言" } });
+    fireEvent.keyDown(staffComposer, { key: "Enter" });
+    const staffMessage = await screen.findByText("员工发言");
+    expect(staffMessage.closest(".message")).toHaveClass("own");
+
+    fireEvent.change(screen.getByDisplayValue("スタッフ"), { target: { value: "manager" } });
+    expect(staffMessage.closest(".message")).not.toHaveClass("own");
+  });
+
+  it("lets staff resolve and reopen an issue with the staff identity", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    expect(await screen.findByRole("heading", { name: "チャット" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByDisplayValue("店長"), { target: { value: "staff" } });
+    const resolveButton = await screen.findByRole("button", { name: "解決にする" });
+    expect(resolveButton).toBeInTheDocument();
+    fireEvent.click(resolveButton);
+
+    expect(await screen.findByRole("button", { name: "再開" })).toBeInTheDocument();
+    expect(screen.getByText("対応者 佐藤 美咲")).toBeInTheDocument();
+    expect(screen.getByText(/対応時刻/)).toBeInTheDocument();
+    const storedIssue = JSON.parse(localStorage.getItem("restaurant-ops.chat-mock.v1") ?? "{}").items.find((item: { id?: string }) => item.id === "issue-fridge");
+    expect(storedIssue.status).toBe("RESOLVED");
+    expect(storedIssue.resolvedBy).toBe("佐藤 美咲");
+    expect(storedIssue.resolvedAt).toEqual(expect.any(String));
+
+    fireEvent.click(screen.getByRole("button", { name: "再開" }));
+    expect(await screen.findByRole("button", { name: "解決にする" })).toBeInTheDocument();
+    const reopenedIssue = JSON.parse(localStorage.getItem("restaurant-ops.chat-mock.v1") ?? "{}").items.find((item: { id?: string }) => item.id === "issue-fridge");
+    expect(reopenedIssue.status).toBe("OPEN");
+    expect(reopenedIssue.resolvedBy).toBeUndefined();
+    expect(reopenedIssue.resolvedAt).toBeUndefined();
+  });
+
+  it("refreshes issue state when another tab updates the chat mock", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    expect(await screen.findByRole("button", { name: "解決にする" })).toBeInTheDocument();
+
+    await resolveChatIssue("issue-fridge", "佐藤 美咲");
+    fireEvent(window, new StorageEvent("storage", { key: CHAT_STORAGE_KEY, newValue: localStorage.getItem(CHAT_STORAGE_KEY) }));
+    expect(await screen.findByRole("button", { name: "再開" })).toBeInTheDocument();
+    expect(screen.getByText("対応者 佐藤 美咲")).toBeInTheDocument();
+  });
+
+  it("creates a support request from the manager dialog", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: /欠員支援を作成/ }));
+    fireEvent.change(screen.getByLabelText("日付"), { target: { value: "2026-10-29" } });
+    fireEvent.change(screen.getByLabelText("開始時間"), { target: { value: "17:00" } });
+    fireEvent.change(screen.getByLabelText("終了時間"), { target: { value: "20:00" } });
+    fireEvent.change(screen.getByLabelText("欠員ポジション"), { target: { value: "ホール" } });
+    fireEvent.change(screen.getByLabelText("回答期限"), { target: { value: "1d" } });
+    fireEvent.change(screen.getByLabelText("支援内容"), { target: { value: "晚班需要一名支援" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "欠員支援を作成" }).at(-1)!);
+    expect(await screen.findByRole("heading", { name: /17:00–20:00/ })).toBeInTheDocument();
+  });
+
+  it("does not duplicate today in the support date shortcuts", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-29T03:00:00.000Z") });
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(screen.getByRole("button", { name: /欠員支援を作成/ }));
+    const shortcuts = Array.from(document.querySelectorAll<HTMLButtonElement>(".date-quick-actions button"));
+    expect(shortcuts).toHaveLength(3);
+    expect(shortcuts.map((button) => button.textContent)).not.toContain("本日");
+    expect(shortcuts[0]).toHaveTextContent(/30/);
+  });
+
+  it("keeps staff responses independent for each support card", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: /欠員支援を作成/ }));
+    fireEvent.change(screen.getByLabelText("日付"), { target: { value: "2026-10-30" } });
+    fireEvent.change(screen.getByLabelText("開始時間"), { target: { value: "17:00" } });
+    fireEvent.change(screen.getByLabelText("終了時間"), { target: { value: "20:00" } });
+    fireEvent.change(screen.getByLabelText("欠員ポジション"), { target: { value: "ホール" } });
+    fireEvent.change(screen.getByLabelText("回答期限"), { target: { value: "1d" } });
+    fireEvent.change(screen.getByLabelText("支援内容"), { target: { value: "第二张支援卡片" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "欠員支援を作成" }).at(-1)!);
+    await screen.findByRole("heading", { name: /17:00–20:00/ });
+
+    fireEvent.change(screen.getByDisplayValue("店長"), { target: { value: "staff" } });
+    const supportCards = await waitFor(() => {
+      const cards = Array.from(document.querySelectorAll<HTMLElement>(".support-card-staff"));
+      if (cards.length < 2) throw new Error("second support card not rendered");
+      return cards;
+    });
+    const firstYes = supportCards[0].querySelector<HTMLButtonElement>("button");
+    const secondYes = supportCards[1].querySelector<HTMLButtonElement>("button");
+    expect(firstYes).toHaveTextContent("支援できます");
+    expect(secondYes).toHaveTextContent("支援できます");
+    fireEvent.click(firstYes!);
+    expect(firstYes).toHaveClass("selected");
+    expect(secondYes).not.toHaveClass("selected");
+    fireEvent.click(supportCards[1].querySelectorAll("button")[1]);
+    expect(firstYes).toHaveClass("selected");
+    expect(supportCards[1].querySelectorAll("button")[1]).toHaveClass("selected");
+    await waitFor(() => {
+      const supportItems = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) ?? "{}").items.filter((item: { kind?: string }) => item.kind === "support");
+      expect(supportItems.every((item: { responses?: unknown[] }) => item.responses?.length === 1)).toBe(true);
+    });
+    fireEvent.change(screen.getByDisplayValue("スタッフ"), { target: { value: "manager" } });
+    expect(await screen.findAllByText("回答 1 件 · 回答あり")).toHaveLength(2);
   });
 
   it("opens the second-version exception modules from More", () => {
@@ -343,5 +629,23 @@ describe("App", () => {
     expect(screen.queryByText("閉店清掃")).not.toBeInTheDocument();
     expect(screen.getAllByText("閉店清潔").length).toBeGreaterThan(0);
   });
+
+  it("switches the document language and uses natural Chinese refrigerator copy", async () => {
+    window.location.hash = "#/chat";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
+    const languageSelect = document.querySelector(".language-select select") as HTMLSelectElement;
+    await screen.findByRole("heading", { name: /チャット|聊天|Chat|聊天室/ });
+
+    await act(async () => { fireEvent.change(languageSelect, { target: { value: "zh" } }); });
+    expect(document.documentElement.lang).toBe("zh");
+    expect(screen.getByText("2号冰箱的门关不严。")).toBeInTheDocument();
+    expect(screen.queryByText("2号冰箱的门有些关不严。")).not.toBeInTheDocument();
+
+    await act(async () => { fireEvent.change(languageSelect, { target: { value: "zh-TW" } }); });
+    expect(document.documentElement.lang).toBe("zh-TW");
+    expect(screen.getByText("2 號冰箱的門關不緊。")).toBeInTheDocument();
+  });
 });
+
 

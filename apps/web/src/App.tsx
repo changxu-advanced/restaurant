@@ -1,12 +1,15 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle, Archive, BadgeInfo, BookOpen, Boxes, CalendarDays, Check, ChevronDown, ChevronRight,
-  CircleDollarSign, Clock3, Languages, LayoutDashboard, MessageCircle, PackageCheck,
-  Settings, Sparkles, Store, Users, UtensilsCrossed, Eye, MoreHorizontal, MessageSquareWarning, Wrench, ShieldCheck, Building2, Star, CalendarCheck, Camera, CheckCircle2
+  CircleDollarSign, CircleHelp, Clock3, Languages, LayoutDashboard, MessageCircle, PackageCheck,
+  Settings, Sparkles, Store, Users, UtensilsCrossed, Eye, MoreHorizontal, MessageSquareWarning, Megaphone, Wrench, ShieldCheck, Building2, Star, CalendarCheck, Camera, CheckCircle2, FileText,
+  Paperclip, Search
 } from "lucide-react";
 import { featureCards, initialInventory, shifts } from "./demoData";
 import { useCreateEmployee, useDeactivateEmployee, useEmployee, useEmployees, usePlaceEmployeeOnLeave, useReactivateEmployee, useStoreSettings, useUpdateEmployee } from "./employeeApi";
+import { useChatItems, useCreateChatIssue, useCreateChatMessage, useCreateSupportRequest, useCreateSupportResponse, useReopenChatIssue, useResolveChatIssue } from "./chatApi";
+import type { ChatAttachment, ChatIssue, ChatItem, ChatMessage, ChatSupportRequest, CreateIssueInput } from "./chatApi";
 import type { InventoryItem, NavKey, StockState } from "./types";
 import { formatBackToTopParts } from "./employeeFormatting";
 import { employeeStatusLabel, laborRuleLabel, localizedLaborReason, preferenceLabel, residenceStatusLabel, roleTitleLabel, skillLevelLabel, skillPositionLabel, trainingKeyLabel, trainingStatusLabel } from "./employeePresentation";
@@ -110,8 +113,8 @@ function StatusPill({ tone, children }: { tone: "normal" | "warning" | "danger" 
   return <span className={`status-pill ${tone}`}><span aria-hidden="true">{icon}</span>{children}</span>;
 }
 
-function Card({ children, className = "", id, tabIndex }: { children: React.ReactNode; className?: string; id?: string; tabIndex?: number }) {
-  return <section id={id} tabIndex={tabIndex} className={`card ${className}`}>{children}</section>;
+function Card({ children, className = "", id, tabIndex, onClick }: { children: React.ReactNode; className?: string; id?: string; tabIndex?: number; onClick?: React.MouseEventHandler<HTMLElement> }) {
+  return <section id={id} tabIndex={tabIndex} onClick={onClick} className={`card ${className}`}>{children}</section>;
 }
 
 function Header({ role, setRole, colorAssist }: { role: "manager" | "staff"; setRole: (role: "manager" | "staff") => void; colorAssist: boolean }) {
@@ -344,11 +347,385 @@ function InventoryPage() {
   return <div className="page-stack"><div className="page-title"><div><p className="eyebrow">{t("scheduledCheck")}</p><h2>{t("inventory")}</h2><p>{t("inventoryDescription")}</p></div><div className="button-row"><button className="secondary-button" onClick={() => setItems(initialInventory)}>{t("applyYesterday")}</button><button className="primary-button" onClick={() => setSaved(true)}><Check size={18} />{saved ? t("saved") : t("save")}</button></div></div><Card><div className="inventory-table"><div className="inventory-head"><span>{t("itemLabel")}</span><span>{t("stateLabel")}</span><span>{t("forecastLabel")}</span></div>{items.map((item) => { const copy = itemCopy[item.id] ?? { name: item.name, forecast: item.forecast, recommendation: item.recommendation }; return <div className="inventory-row" key={item.id}><div><strong>{copy.name}</strong><span>{t("stockKeyword")}</span></div><div className="stock-buttons">{stockOptions.map((state) => <button key={state} className={item.state === state ? `selected ${state}` : ""} onClick={() => setState(item.id, state)}>{t(state)}</button>)}</div><div className="forecast"><strong>{copy.forecast}</strong>{copy.recommendation && <span>{copy.recommendation}</span>}</div></div>; })}</div></Card><Card className="suggestion-card"><PackageCheck size={26} /><div><h3>{t("orderDraft")}</h3><p>{t("orderDraftDescription")}</p></div><button className="secondary-button">{t("reviewContent")}</button></Card></div>;
 }
 
-function ChatPage() {
-  const { t } = useTranslation();
-  const [response, setResponse] = useState<string>();
-  const [resolved, setResolved] = useState(false);
-  return <div className="page-stack"><div className="page-title"><div><p className="eyebrow">{t("publicRoom")}</p><h2>{t("chat")}</h2><p>{t("chatDescription")}</p></div><button className="primary-button">＋ {t("addHandover")}</button></div><div className="chat-shell"><div className="chat-day">{t("chatDate")}</div><div className="message"><div className="message-avatar">山</div><div><div className="message-meta"><strong>山田</strong><time>10:25</time></div><div className="bubble">{t("fridgeMessage")}</div></div></div><Card className="support-card"><div className="card-title-row"><div><p className="eyebrow"><AlertTriangle size={14} />{t("support")}</p><h3>{t("todayLabel")} 18:00–20:30 · {t("wok")}</h3></div><StatusPill tone="danger">{t("responseDeadline")}</StatusPill></div><p>{t("absenceNotice")}</p><div className="support-actions"><button className={response === "yes" ? "selected" : ""} onClick={() => setResponse("yes")}>{t("canSupport")}</button><button className={response === "partial" ? "selected" : ""} onClick={() => setResponse("partial")}>{t("partialSupport")}</button><button className={response === "no" ? "selected" : ""} onClick={() => setResponse("no")}>{t("cannotSupport")}</button></div>{response && <p className="confirmation"><Check size={16} />{t("responseAccepted")}</p>}</Card><Card className="handover-card"><div className="handover-photo" aria-label={`${t("equipmentLabel")} · ${t("refrigerator")}`}><Archive size={32} /><span>{t("photoLabel")}</span></div><div className="card-body"><div className="card-title-row"><h3>{t("equipmentLabel")} · {t("refrigerator")}</h3><StatusPill tone={resolved ? "normal" : "warning"}>{resolved ? t("resolved") : t("unresolved")}</StatusPill></div><p>{t("closeCheck")}</p><div className="meta"><span>{t("assignedTo")}</span><span>{t("beforeShift")}</span></div></div><button className="secondary-button" onClick={() => setResolved(!resolved)}>{resolved ? t("reopen") : t("resolve")}</button></Card></div></div>;
+type ChatDialog = "support" | "issue" | "notice" | "search" | null;
+type ChatFileFilter = "all" | "image" | "pdf";
+const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+  reader.onerror = () => reject(reader.error ?? new Error("附件读取失败"));
+  reader.readAsDataURL(file);
+});
+function ChatPage({ role }: { role: "manager" | "staff" }) {
+  const { t, i18n } = useTranslation();
+  const itemsQuery = useChatItems();
+  const createMessage = useCreateChatMessage();
+  const createSupport = useCreateSupportRequest();
+  const createSupportResponse = useCreateSupportResponse();
+  const createIssue = useCreateChatIssue();
+  const resolveIssue = useResolveChatIssue();
+  const reopenIssue = useReopenChatIssue();
+  const [dialog, setDialog] = useState<ChatDialog>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFileFilter, setSearchFileFilter] = useState<ChatFileFilter>("all");
+  const [message, setMessage] = useState("");
+  const [supportResponses, setSupportResponses] = useState<Record<string, "yes" | "partial" | "no">>({});
+  const [selectedSupportId, setSelectedSupportId] = useState<string | null>(null);
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isCopyFeedbackFading, setIsCopyFeedbackFading] = useState(false);
+  const [supportValidationError, setSupportValidationError] = useState<string | null>(null);
+  const [selectedAttachments, setSelectedAttachments] = useState<ChatAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [isAttachmentErrorFading, setIsAttachmentErrorFading] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState<ChatAttachment | null>(null);
+  const [supportDraft, setSupportDraft] = useState({ shiftDate: "", shiftStart: "", shiftEnd: "", position: "", note: "", replyDeadline: "" });
+  const [issueDraft, setIssueDraft] = useState({ title: "", body: "", area: "" });
+  const [noticeDraft, setNoticeDraft] = useState("");
+  const chatStreamRef = useRef<HTMLDivElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const dragDepthRef = useRef(0);
+  const attachmentIdRef = useRef(0);
+  const attachmentUrlsRef = useRef(new Set<string>());
+  const attachmentDataUrlsRef = useRef(new Map<string, Promise<string>>());
+  const revokeAttachmentUrl = (url: string) => {
+    if (url && typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(url);
+  };
+  const scrollToLatest = useRef(false);
+  useEffect(() => {
+    if (!activeMessageId) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".bubble, .message-actions")) return;
+      setActiveMessageId(null);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [activeMessageId]);
+  useEffect(() => {
+    if (!copiedMessageId) return;
+    setIsCopyFeedbackFading(false);
+    const fadeTimer = window.setTimeout(() => setIsCopyFeedbackFading(true), 1500);
+    const clearTimer = window.setTimeout(() => {
+      setCopiedMessageId(null);
+      setIsCopyFeedbackFading(false);
+      setActiveMessageId(null);
+    }, 2000);
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [copiedMessageId]);
+  useEffect(() => {
+    if (dialog !== "search") return;
+    requestAnimationFrame(() => searchInputRef.current?.focus());
+  }, [dialog]);
+  const managerName = t("storeManager");
+  const staffDemoName = "佐藤 美咲";
+  const currentAuthor = role === "manager" ? managerName : staffDemoName;
+  const isOwnMessage = (item: ChatMessage) => role === "manager"
+    ? new Set(["店長", "店长", "Manager", managerName]).has(item.author)
+    : item.author === staffDemoName;
+  const issueActorName = role === "manager" ? managerName : staffDemoName;
+  const items = [...(itemsQuery.data ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  useEffect(() => {
+    if (!scrollToLatest.current || !chatStreamRef.current) return;
+    chatStreamRef.current.scrollTop = chatStreamRef.current.scrollHeight;
+    scrollToLatest.current = false;
+  }, [items.length, selectedAttachments.length, attachmentError]);
+  useEffect(() => () => {
+    attachmentUrlsRef.current.forEach(revokeAttachmentUrl);
+  }, []);
+  useEffect(() => {
+    if (!attachmentError) {
+      setIsAttachmentErrorFading(false);
+      return;
+    }
+    setIsAttachmentErrorFading(false);
+    const fadeTimer = window.setTimeout(() => setIsAttachmentErrorFading(true), 2500);
+    const removeTimer = window.setTimeout(() => setAttachmentError(null), 3000);
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(removeTimer);
+    };
+  }, [attachmentError]);
+  const timeLabel = (value: string) => new Intl.DateTimeFormat(i18n.language, { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  const dateKey = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+  const dateLabelForChat = (value: string) => new Intl.DateTimeFormat(i18n.language, { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric" }).format(new Date(value));
+  const positionCopyKeys: Record<string, string> = { "ホール": "positionHall", "鍋場": "positionWok", "レジ": "positionRegister", "仕込み": "positionPrep", "洗い場": "positionDishwashing", "清掃": "positionCleaning", "配膳": "positionServing" };
+  const positionLabel = (value: string) => positionCopyKeys[value] ? t(positionCopyKeys[value]) : value;
+  const deadlineCopyKeys: Record<string, string> = { "1w": "deadline1Week", "1d": "deadline1Day", "12h": "deadline12Hours", "6h": "deadline6Hours", "3h": "deadline3Hours", "1h": "deadline1Hour" };
+  const deadlineLabel = (value: string) => deadlineCopyKeys[value] ? t(deadlineCopyKeys[value]) : value;
+  const dateLabel = (value: string) => {
+    if (value === "本日") return t("todayLabel");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return new Intl.DateTimeFormat(i18n.language, { timeZone: "Asia/Tokyo", year: "numeric", month: "numeric", day: "numeric" }).format(new Date(`${value}T00:00:00+09:00`));
+    return value;
+  };
+  const datePresetValue = (offset: number) => {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const year = Number(parts.find((part) => part.type === "year")?.value);
+    const month = Number(parts.find((part) => part.type === "month")?.value);
+    const day = Number(parts.find((part) => part.type === "day")?.value);
+    const date = new Date(Date.UTC(year, month - 1, day + offset));
+    return date.toISOString().slice(0, 10);
+  };
+  const datePresetLabel = (value: string) => new Intl.DateTimeFormat(i18n.language, { timeZone: "Asia/Tokyo", month: "short", day: "numeric", weekday: "short" }).format(new Date(`${value}T00:00:00+09:00`));
+  const messageBody = (value: string) => value === "冷蔵庫2番の扉が少し閉まりにくくなっています。" ? t("fridgeMessage") : value;
+  const supportNote = (value: string) => value === "欠勤連絡がありました。条件に合うスタッフに確認してください。" ? t("absenceNotice") : value;
+  const issueTitle = (value: string) => value === "冷蔵庫2番の扉が閉まりにくい" ? t("fridgeIssueTitle") : value;
+  const issueBody = (value: string) => value === "閉店時に庫内温度と扉を再確認してください。" ? t("closeCheck") : value;
+  const issueArea = (value: string | undefined) => value === "設備 · 冷蔵庫2番" ? t("fridgeIssueArea") : value ?? t("issueArea");
+  const searchableText = (item: ChatItem) => {
+    if (item.kind === "message") return [item.author, item.body, messageBody(item.body), ...(item.attachments?.map((attachment) => attachment.name) ?? [])].join(" ");
+    if (item.kind === "support") return [item.author, item.position, positionLabel(item.position), item.shiftTime, item.note, supportNote(item.note)].join(" ");
+    return [item.author, item.title, issueTitle(item.title), item.body, issueBody(item.body), item.area, item.area ? issueArea(item.area) : ""].filter(Boolean).join(" ");
+  };
+  const attachmentMatchesFilter = (item: ChatItem, filter: ChatFileFilter) => {
+    if (filter === "all") return true;
+    if (item.kind !== "message" || !item.attachments?.length) return false;
+    return item.attachments.some((attachment) => {
+      const isPdf = attachment.type === "application/pdf" || attachment.name.toLocaleLowerCase().endsWith(".pdf");
+      return filter === "pdf" ? isPdf : !isPdf && attachment.type.startsWith("image/");
+    });
+  };
+  const searchResults = useMemo(() => {
+    const term = searchQuery.trim().toLocaleLowerCase();
+    if (!term && searchFileFilter === "all") return [];
+    return [...items].reverse().filter((item) => attachmentMatchesFilter(item, searchFileFilter) && (!term || searchableText(item).toLocaleLowerCase().includes(term)));
+  }, [items, searchFileFilter, searchQuery, i18n.language]);
+  const resultExcerpt = (item: ChatItem) => {
+    if (item.kind === "message" && item.attachments?.length) return `${item.body ? `${messageBody(item.body)} · ` : ""}${item.attachments.map((attachment) => attachment.name).join(", ")}`;
+    if (item.kind === "message") return messageBody(item.body);
+    if (item.kind === "support") return `${dateLabel(item.shiftDate)} ${item.shiftTime} · ${positionLabel(item.position)}`;
+    return issueTitle(item.title);
+  };
+  const resultTypeLabel = (item: ChatItem) => item.kind === "support" ? t("support") : item.kind === "issue" ? t("issue") : t("searchMessageLabel");
+  const focusSearchResult = (item: ChatItem) => {
+    setDialog(null);
+    requestAnimationFrame(() => {
+      const target = document.getElementById(`chat-item-${item.id}`);
+      target?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      if (!target) return;
+      target.classList.add("chat-search-target");
+      window.setTimeout(() => target.classList.remove("chat-search-target"), 1400);
+    });
+  };
+  const submitMessage = async () => {
+    const body = message.trim();
+    if ((!body && selectedAttachments.length === 0) || createMessage.isPending) return;
+    scrollToLatest.current = true;
+    const attachments = selectedAttachments.length ? await Promise.all(selectedAttachments.map(async (attachment) => ({
+      ...attachment,
+      url: (await attachmentDataUrlsRef.current.get(attachment.id)?.catch(() => "")) || attachment.url
+    }))) : [];
+    createMessage.mutate({ author: currentAuthor, initials: currentAuthor.slice(0, 1), body, ...(attachments.length ? { attachments } : {}) });
+    setMessage("");
+    selectedAttachments.forEach((attachment) => revokeAttachmentUrl(attachment.url));
+    selectedAttachments.forEach((attachment) => attachmentUrlsRef.current.delete(attachment.url));
+    selectedAttachments.forEach((attachment) => attachmentDataUrlsRef.current.delete(attachment.id));
+    setSelectedAttachments([]);
+    setAttachmentError(null);
+    setIsAttachmentErrorFading(false);
+  };
+  const isAcceptedAttachment = (file: File) => {
+    const extension = file.name.toLocaleLowerCase().split(".").pop();
+    return file.type.startsWith("image/") || file.type === "application/pdf" || extension === "pdf";
+  };
+  const selectAttachments = (files: File[]) => {
+    if (!files.length) return;
+    const acceptedFiles = files.filter(isAcceptedAttachment);
+    const invalidCount = files.length - acceptedFiles.length;
+    const availableSlots = Math.max(0, 5 - selectedAttachments.length);
+    const filesToAdd = acceptedFiles.slice(0, availableSlots);
+    const nextAttachments = filesToAdd.map((file) => {
+      const url = typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : "";
+      attachmentUrlsRef.current.add(url);
+      const id = `${Date.now()}-${attachmentIdRef.current++}`;
+      attachmentDataUrlsRef.current.set(id, readFileAsDataUrl(file));
+      return { id, name: file.name, type: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream"), url };
+    });
+    if (nextAttachments.length > 0) scrollToLatest.current = true;
+    setSelectedAttachments((current) => [...current, ...nextAttachments]);
+    if (invalidCount > 0) setAttachmentError(t("attachmentTypeError"));
+    else if (acceptedFiles.length > availableSlots) setAttachmentError(t("attachmentLimitError"));
+    else setAttachmentError(null);
+  };
+  const removeAttachment = (attachment: ChatAttachment) => {
+    revokeAttachmentUrl(attachment.url);
+    attachmentUrlsRef.current.delete(attachment.url);
+    attachmentDataUrlsRef.current.delete(attachment.id);
+    setSelectedAttachments((current) => current.filter((item) => item.id !== attachment.id));
+    if (previewAttachment?.id === attachment.id) setPreviewAttachment(null);
+  };
+  const hasFiles = (event: React.DragEvent<HTMLDivElement>) => Array.from(event.dataTransfer.types).includes("Files");
+  const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDraggingFile(true);
+  };
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDraggingFile(true);
+  };
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDraggingFile(false);
+  };
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingFile(false);
+    selectAttachments(Array.from(event.dataTransfer.files));
+  };
+  const submitSupport = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (Object.values(supportDraft).some((value) => !value.trim())) {
+      setSupportValidationError(t("requiredField"));
+      return;
+    }
+    if (supportDraft.shiftDate < datePresetValue(0)) {
+      setSupportValidationError(t("supportDatePastError"));
+      return;
+    }
+    const toMinutes = (value: string) => {
+      const [hours, minutes] = value.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+    if (toMinutes(supportDraft.shiftEnd) < toMinutes(supportDraft.shiftStart)) {
+      setSupportValidationError(t("supportTimeOrderError"));
+      return;
+    }
+    setSupportValidationError(null);
+    scrollToLatest.current = true;
+    const { shiftStart, shiftEnd, ...supportFields } = supportDraft;
+    createSupport.mutate({ ...supportFields, shiftTime: `${shiftStart}–${shiftEnd}`, author: managerName }, { onSuccess: () => { setDialog(null); setSupportValidationError(null); setSupportDraft({ shiftDate: "", shiftStart: "", shiftEnd: "", position: "", note: "", replyDeadline: "" }); } });
+  };
+  const submitIssue = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!issueDraft.title.trim() || !issueDraft.body.trim()) return;
+    scrollToLatest.current = true;
+    const payload: CreateIssueInput = { ...issueDraft, area: issueDraft.area.trim() || undefined, author: managerName };
+    createIssue.mutate(payload, { onSuccess: () => { setDialog(null); setIssueDraft({ title: "", body: "", area: "" }); } });
+  };
+  const submitNotice = (event: React.FormEvent) => {
+    event.preventDefault();
+    const body = noticeDraft.trim();
+    if (!body || createMessage.isPending) return;
+    scrollToLatest.current = true;
+    createMessage.mutate({ author: managerName, initials: managerName.slice(0, 1), body, messageType: "NOTICE" }, { onSuccess: () => { setDialog(null); setNoticeDraft(""); } });
+  };
+  const copyMessage = async (id: string, body: string) => {
+    await navigator.clipboard?.writeText(body);
+    setActiveMessageId(id);
+    setCopiedMessageId(id);
+  };
+  const replyToMessage = (item: ChatMessage) => {
+    setMessage(`@${item.author} `);
+    setActiveMessageId(null);
+    requestAnimationFrame(() => messageInputRef.current?.focus());
+  };
+  const renderMessageActions = (item: ChatMessage) => activeMessageId === item.id && <div className={`message-actions${copiedMessageId === item.id ? " copy-feedback" : ""}${copiedMessageId === item.id && isCopyFeedbackFading ? " is-fading" : ""}`} onClick={(event) => event.stopPropagation()}>{copiedMessageId === item.id ? <span className="message-copy-feedback">{t("copied")}</span> : <>{!item.attachments?.length && <button type="button" onClick={() => copyMessage(item.id, messageBody(item.body))}>{t("copyMessage")}</button>}<button type="button" onClick={() => replyToMessage(item)}>{t("replyMessage")}</button></>}</div>;
+  const renderMessageAttachments = (attachments: ChatAttachment[] | undefined) => attachments?.length ? <div className="message-attachments">{attachments.map((attachment) => <button type="button" className={`message-attachment ${attachment.type === "application/pdf" ? "is-pdf" : ""}`} key={attachment.id} title={attachment.name} onClick={(event) => { event.stopPropagation(); setPreviewAttachment(attachment); }}><span className="message-attachment-preview">{attachment.type.startsWith("image/") && attachment.url ? <img src={attachment.url} alt={attachment.name} /> : <FileText size={24} />}</span><span className="message-attachment-name">{attachment.name}</span></button>)}</div> : null;
+  const renderMessage = (item: ChatMessage) => <div className={`message ${isOwnMessage(item) ? "own" : ""}`} key={item.id} id={`chat-item-${item.id}`}><div className="message-avatar">{item.initials}</div><div className="message-content"><div className="message-meta"><strong>{item.author}</strong><time>{timeLabel(item.createdAt)}</time></div><div className="message-line"><div className="bubble" onClick={() => setActiveMessageId((current) => current === item.id ? null : item.id)}>{item.body && messageBody(item.body)}{renderMessageAttachments(item.attachments)}</div>{renderMessageActions(item)}</div></div></div>;
+  const renderNotice = (item: ChatMessage) => <Card className="notice-card" key={item.id} id={`chat-item-${item.id}`}><div className="notice-card-header"><div className="notice-card-heading"><p className="eyebrow"><Megaphone size={14} />{t("noticeLabel")}</p><strong>{item.author}</strong><time>{timeLabel(item.createdAt)}</time></div></div><p className="notice-card-body">{messageBody(item.body)}</p>{renderMessageAttachments(item.attachments)}<div className="notice-card-footer">{t("noticeAudience")}</div></Card>;
+  const renderSupport = (item: ChatSupportRequest) => {
+    const savedResponse = item.responses.find((entry) => entry.author === staffDemoName)?.kind;
+    const response = supportResponses[item.id] ?? savedResponse;
+    const setResponse = (value: "yes" | "partial" | "no") => {
+      setSupportResponses((current) => ({ ...current, [item.id]: value }));
+      createSupportResponse.mutate({ requestId: item.id, response: { kind: value, author: staffDemoName } });
+    };
+    return <Card className={`support-card${role === "staff" ? " support-card-staff" : ""}`} key={item.id} id={`chat-item-${item.id}`} onClick={() => role === "manager" && setSelectedSupportId(item.id)} tabIndex={role === "manager" ? 0 : undefined}><div className="card-title-row"><div><p className="eyebrow"><AlertTriangle size={18} />{t("support")}</p><h3>{dateLabel(item.shiftDate)} {item.shiftTime} · <span className="support-position">{positionLabel(item.position)}</span></h3></div><StatusPill tone="danger">{t("replyDeadlineLabel", { time: deadlineLabel(item.replyDeadline) })}</StatusPill></div><p className="support-card-note">{supportNote(item.note)}</p><div className="support-card-footer"><div className="support-response-summary">{t("responsesCount", { count: item.responses.length })} · {item.responses.length ? t("responsesReceived") : t("waitingResponses")}</div><span className="support-card-hint">{role === "staff" ? t("staffSupportHint") : t("managerSupportHint")}</span></div>{role === "staff" && <div className="support-actions"><button className={response === "yes" ? "selected" : ""} onClick={() => setResponse("yes")}>{t("canSupport")}</button><button className={response === "partial" ? "selected" : ""} onClick={() => setResponse("partial")}>{t("partialSupport")}</button><button className={response === "no" ? "selected" : ""} onClick={() => setResponse("no")}>{t("cannotSupport")}</button></div>}{role === "staff" && response && <p className="confirmation"><Check size={16} />{t("responseAccepted")}</p>}</Card>;
+  };
+  const renderIssue = (item: ChatIssue) => <Card className="handover-card issue-card" key={item.id} id={`chat-item-${item.id}`}><div className="card-body"><div className="card-title-row"><div><p className="eyebrow"><CircleHelp size={18} />{t("issue")}</p><h3>{issueTitle(item.title)}</h3></div><div className="issue-title-actions"><StatusPill tone={item.status === "RESOLVED" ? "normal" : "warning"}>{item.status === "RESOLVED" ? t("resolved") : t("unresolved")}</StatusPill><button className="secondary-button issue-action" onClick={() => item.status === "RESOLVED" ? reopenIssue.mutate(item.id) : resolveIssue.mutate({ issueId: item.id, resolvedBy: issueActorName })}>{item.status === "RESOLVED" ? t("reopen") : t("resolve")}</button></div></div><p>{issueBody(item.body)}</p><div className="meta"><span>{issueArea(item.area)}</span>{item.resolvedBy && <span>{t("resolvedBy", { name: item.resolvedBy })}</span>}{item.resolvedAt && <span>{t("resolvedAt", { time: timeLabel(item.resolvedAt) })}</span>}</div><p className="issue-card-hint">{item.status === "RESOLVED" ? t("issueResolvedHint") : t("issueOpenHint")}</p></div></Card>;
+  const selectedSupport = selectedSupportId ? items.find((item): item is ChatSupportRequest => item.kind === "support" && item.id === selectedSupportId) : null;
+  let previousDate = "";
+  const timelineItems = items.map((item: ChatItem) => {
+    const currentDate = dateKey(item.createdAt);
+    const separator = currentDate !== previousDate ? <div className="chat-day" key={`${item.id}-date`}>{dateLabelForChat(item.createdAt)}</div> : null;
+    previousDate = currentDate;
+    const content = item.kind === "message" ? (item.messageType === "NOTICE" ? renderNotice(item) : renderMessage(item)) : item.kind === "support" ? renderSupport(item) : renderIssue(item);
+    return <Fragment key={item.id}>{separator}{content}</Fragment>;
+  });
+  return <div className="page-stack">
+    <div className="page-title">
+      <div><p className="eyebrow">{t("publicRoom")}</p><h2>{t("chat")}</h2><p>{t("chatDescription")}</p></div>
+      <div className="chat-toolbar">
+        {role === "manager" && <>
+          <button className="secondary-button" onClick={() => { setSupportValidationError(null); setDialog("support"); }}>＋ {t("startSupport")}</button>
+          <button className="secondary-button" onClick={() => setDialog("issue")}>＋ {t("publishIssue")}</button>
+          <button className="primary-button" onClick={() => setDialog("notice")}>＋ {t("publishNotice")}</button>
+        </>}
+          <button className="secondary-button chat-search-trigger" onClick={() => { setSearchQuery(""); setSearchFileFilter("all"); setDialog("search"); }}><Search size={17} />{t("searchMessages")}</button>
+      </div>
+    </div>
+    <div className="chat-shell" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      <div className="chat-stream" ref={chatStreamRef}>
+        {itemsQuery.isLoading && <Card><span>{t("loading")}</span></Card>}
+        {timelineItems}
+      </div>
+      <div className="chat-composer">
+        {selectedAttachments.length > 0 && <div className="chat-attachment-list" aria-label={t("attachmentLabel")}>{selectedAttachments.map((attachment) => <div className="chat-attachment-chip" key={attachment.id}><button type="button" className="chat-attachment-name" title={attachment.name} onClick={() => setPreviewAttachment(attachment)}><Paperclip size={14} /><span>{attachment.name}</span></button><button type="button" aria-label={t("removeAttachment")} onClick={() => removeAttachment(attachment)}>×</button></div>)}</div>}
+        {attachmentError && <p className={`chat-attachment-error${isAttachmentErrorFading ? " is-fading" : ""}`} role="alert">{attachmentError}</p>}
+        <input ref={attachmentInputRef} className="visually-hidden" type="file" accept="image/*,.pdf" multiple onChange={(event) => { selectAttachments(Array.from(event.target.files ?? [])); event.currentTarget.value = ""; }} />
+        <div className="chat-composer-input"><textarea ref={messageInputRef} autoFocus aria-label={t("chatComposerPlaceholder")} placeholder={t("chatComposerPlaceholder")} value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitMessage(); } }} /><button type="button" className="chat-attach-inline" aria-label={t("attachFile")} onClick={() => attachmentInputRef.current?.click()}><Paperclip size={17} /><span>{t("attachFile")}</span></button><button className="primary-button" onClick={submitMessage} disabled={(!message.trim() && selectedAttachments.length === 0) || createMessage.isPending}>{t("sendMessage")}</button></div>
+      </div>
+      {isDraggingFile && <div className="chat-drop-overlay" role="status" aria-live="polite"><Paperclip size={28} /><strong>{t("dropToUpload")}</strong><span>{t("dropUploadHint")}</span></div>}
+    </div>
+    {previewAttachment && <div className="chat-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewAttachment(null); }}><div className={`chat-preview-dialog${previewAttachment.type === "application/pdf" ? " is-pdf" : previewAttachment.type.startsWith("image/") ? " is-image" : ""}`} role="dialog" aria-modal="true" aria-labelledby="attachment-preview-title"><div className="chat-preview-header"><strong id="attachment-preview-title">{previewAttachment.name}</strong><button type="button" className="icon-button" aria-label={t("closePreview")} onClick={() => setPreviewAttachment(null)}>×</button></div>{previewAttachment.type.startsWith("image/") && previewAttachment.url ? <img src={previewAttachment.url} alt={previewAttachment.name} /> : previewAttachment.url ? <iframe src={`${previewAttachment.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} title={previewAttachment.name} /> : <p>{t("attachmentPreview")}</p>}</div></div>}
+    {selectedSupport && role === "manager" && <div className="chat-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedSupportId(null); }}>
+      <div className="chat-dialog support-response-dialog" role="dialog" aria-modal="true" aria-labelledby="support-summary-title">
+        <div className="card-title-row"><div><p className="eyebrow"><AlertTriangle size={16} />{t("supportResponsesTitle")}</p><h3 id="support-summary-title">{dateLabel(selectedSupport.shiftDate)} {selectedSupport.shiftTime} · {positionLabel(selectedSupport.position)}</h3></div><button className="icon-button" aria-label={t("closeDialog")} onClick={() => setSelectedSupportId(null)}>×</button></div>
+        <div className="support-response-groups">
+          {(["yes", "partial", "no"] as const).map((kind) => {
+            const entries = selectedSupport.responses.filter((entry) => entry.kind === kind);
+            const label = kind === "yes" ? t("supportResponseYes") : kind === "partial" ? t("supportResponsePartial") : t("supportResponseNo");
+            return <section className={`support-response-group support-response-${kind}`} key={kind}><div className="support-response-group-heading"><h4>{label}</h4><strong>{entries.length}</strong></div>{entries.length ? <ul className="support-response-list">{entries.map((entry, index) => <li key={`${entry.author}-${index}`}><span>{entry.author}</span></li>)}</ul> : <p className="support-response-empty">{t("supportResponseEmpty")}</p>}</section>;
+          })}
+        </div>
+        <div className="chat-dialog-actions"><button type="button" className="primary-button" onClick={() => setSelectedSupportId(null)}>{t("closeSupportSummary")}</button></div>
+      </div>
+    </div>}
+    {dialog && <div className="chat-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDialog(null); }}>
+      <div className="chat-dialog" role="dialog" aria-modal="true" aria-labelledby="chat-dialog-title">
+        <div className="card-title-row"><h3 id="chat-dialog-title">{dialog === "support" ? t("supportDialogTitle") : dialog === "issue" ? t("issueDialogTitle") : dialog === "notice" ? t("noticeDialogTitle") : t("searchMessages")}</h3><button className="icon-button" aria-label={t("closeDialog")} onClick={() => setDialog(null)}>×</button></div>
+        {dialog === "search" ? <div className="chat-search-panel">
+          <label className="full-field">{t("searchMessages")}<div className="chat-search-input"><Search size={18} /><input ref={searchInputRef} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={t("searchMessagesPlaceholder")} /></div></label>
+          <div className="chat-search-filters" aria-label={t("fileTypeFilter")}>
+            {(["all", "image", "pdf"] as ChatFileFilter[]).map((filter) => <button type="button" key={filter} className={`chat-search-filter${searchFileFilter === filter ? " selected" : ""}`} aria-pressed={searchFileFilter === filter} onClick={() => setSearchFileFilter(filter)}>{filter === "all" ? t("fileTypeAll") : filter === "image" ? t("fileTypePhotos") : t("fileTypePdf")}</button>)}
+          </div>
+          <div className="chat-search-results" aria-live="polite">
+            {searchQuery.trim() && searchResults.length === 0 && <p className="empty-state">{t("noSearchResults")}</p>}
+            {searchResults.map((item) => <button type="button" className="chat-search-result" key={item.id} data-target-id={`chat-item-${item.id}`} onClick={() => focusSearchResult(item)}><span className="chat-search-result-main"><strong>{resultTypeLabel(item)}</strong><span>{resultExcerpt(item)}</span></span><span className="chat-search-result-meta"><span>{item.author}</span><time>{dateLabelForChat(item.createdAt)} · {timeLabel(item.createdAt)}</time></span></button>)}
+          </div>
+        </div> : dialog === "support" ? <form className="chat-form-grid" onSubmit={submitSupport}>
+          <label className="date-picker-field">{t("shiftDate")}<div className="date-picker-row"><input type="date" required min={datePresetValue(0)} value={supportDraft.shiftDate} onChange={(event) => setSupportDraft({ ...supportDraft, shiftDate: event.target.value })} /><button type="button" className="date-today-button" onClick={() => setSupportDraft({ ...supportDraft, shiftDate: datePresetValue(0) })}>{t("todayLabel")}</button></div><div className="date-quick-actions">{[1, 2, 3].map((offset) => { const value = datePresetValue(offset); return <button type="button" key={value} className={supportDraft.shiftDate === value ? "selected" : ""} onClick={() => setSupportDraft({ ...supportDraft, shiftDate: value })}>{datePresetLabel(value)}</button>; })}</div></label>
+          <div className="time-range-fields"><label>{t("shiftStartTime")}<select required value={supportDraft.shiftStart} onChange={(event) => setSupportDraft({ ...supportDraft, shiftStart: event.target.value })}><option value="">{t("selectTime")}</option>{["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"].map((time) => <option key={time} value={time}>{time}</option>)}</select></label><label>{t("shiftEndTime")}<select required value={supportDraft.shiftEnd} onChange={(event) => setSupportDraft({ ...supportDraft, shiftEnd: event.target.value })}><option value="">{t("selectTime")}</option>{["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00", "24:00"].map((time) => <option key={time} value={time}>{time}</option>)}</select></label></div>
+          <label>{t("supportPosition")}<select required value={supportDraft.position} onChange={(event) => setSupportDraft({ ...supportDraft, position: event.target.value })}><option value="">{t("selectPosition")}</option>{[{ value: "ホール", key: "positionHall" }, { value: "鍋場", key: "positionWok" }, { value: "レジ", key: "positionRegister" }, { value: "仕込み", key: "positionPrep" }, { value: "洗い場", key: "positionDishwashing" }, { value: "清掃", key: "positionCleaning" }, { value: "配膳", key: "positionServing" }].map((option) => <option key={option.value} value={option.value}>{t(option.key)}</option>)}</select></label>
+          <label>{t("replyDeadline")}<select required value={supportDraft.replyDeadline} onChange={(event) => setSupportDraft({ ...supportDraft, replyDeadline: event.target.value })}><option value="">{t("selectDeadline")}</option>{[{ value: "1w", key: "deadline1Week" }, { value: "1d", key: "deadline1Day" }, { value: "12h", key: "deadline12Hours" }, { value: "6h", key: "deadline6Hours" }, { value: "3h", key: "deadline3Hours" }, { value: "1h", key: "deadline1Hour" }].map((option) => <option key={option.value} value={option.value}>{t(option.key)}</option>)}</select></label>
+          <label className="full-field">{t("supportNote")}<textarea required value={supportDraft.note} onChange={(event) => setSupportDraft({ ...supportDraft, note: event.target.value })} /></label>
+          {supportValidationError && <p className="chat-form-error full-field" role="alert">{supportValidationError}</p>}
+          <div className="chat-dialog-actions full-field"><button type="button" className="secondary-button" onClick={() => setDialog(null)}>{t("cancel")}</button><button type="submit" className="primary-button">{t("startSupport")}</button></div>
+        </form> : dialog === "issue" ? <form className="chat-form-grid" onSubmit={submitIssue}>
+          <label className="full-field">{t("issueTitle")}<input required value={issueDraft.title} placeholder={t("issueTitlePlaceholder")} onChange={(event) => setIssueDraft({ ...issueDraft, title: event.target.value })} /></label>
+          <label className="full-field">{t("issueDescription")}<textarea required value={issueDraft.body} placeholder={t("issueDescriptionPlaceholder")} onChange={(event) => setIssueDraft({ ...issueDraft, body: event.target.value })} /></label>
+          <label className="full-field">{t("issueArea")}<input value={issueDraft.area} placeholder={t("issueAreaPlaceholder")} onChange={(event) => setIssueDraft({ ...issueDraft, area: event.target.value })} /></label>
+          <div className="chat-dialog-actions full-field"><button type="button" className="secondary-button" onClick={() => setDialog(null)}>{t("cancel")}</button><button type="submit" className="primary-button">{t("publishIssue")}</button></div>
+        </form> : <form className="chat-form-grid" onSubmit={submitNotice}>
+          <label className="full-field">{t("noticeLabel")}<textarea required value={noticeDraft} placeholder={t("noticePlaceholder")} onChange={(event) => setNoticeDraft(event.target.value)} /></label>
+          <div className="chat-dialog-actions full-field"><button type="button" className="secondary-button" onClick={() => setDialog(null)}>{t("cancel")}</button><button type="submit" className="primary-button">{t("publishNotice")}</button></div>
+        </form>}
+      </div>
+    </div>}
+  </div>;
 }
 
 type AttendanceDay = { label: string; minutes: number; status: "WORKED" | "OFF" | "LEAVE"; slotStart?: string; slotEnd?: string };
@@ -811,7 +1188,6 @@ export function EmployeesPageContent({ role }: { role: "manager" | "staff" }) {
       const onLeave = employee.status === "ON_LEAVE";
       const inactive = employee.status === "INACTIVE";
       const severeWarning = !onLeave && !inactive && employee.warning.level === "ACTION";
-      const percent = monitor?.warning?.percent ?? Math.round((employee.weeklyMinutes + employee.outsideWorkMinutes) / employee.weeklyLimitMinutes * 100);
       const capacityMinutes = monthlyBasis ? monitor.standardMinutes + monitor.overtimeLimitMinutes : monitor.standardMinutes;
       const normalMinutes = monthlyBasis ? Math.min(monitor.periodMinutes, monitor.standardMinutes) : Math.min(employee.weeklyMinutes, capacityMinutes);
       const extraMinutes = monthlyBasis ? monitor.overtimeMinutes : employee.outsideWorkMinutes;
@@ -894,6 +1270,9 @@ function StaffHome() {
 
 export default function App() {
   const { t, i18n } = useTranslation();
+  useEffect(() => {
+    document.documentElement.lang = i18n.language;
+  }, [i18n.language]);
   const validRoutes = useMemo(() => new Set<NavKey>([...navItems.map((item) => item.key), "incidents", "reservations", "equipment", "allergens", "crossStore", "evaluations"]), []);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [active, setActive] = useState<NavKey>(() => {
@@ -925,7 +1304,7 @@ export default function App() {
     if (active === "today") return role === "manager" ? <TodayPage onNavigate={navigate} /> : <StaffHome />;
     if (active === "schedule") return <SchedulePage />;
     if (active === "inventory") return <InventoryPage />;
-    if (active === "chat") return <ChatPage />;
+    if (active === "chat") return <ChatPage role={role} />;
     if (active === "employees") return <Suspense fallback={<div className="page-stack"><Card><span>{t("loading")}</span></Card></div>}><LazyEmployeesPage role={role} /></Suspense>;
     if (active === "closeout") return <CloseoutPage />;
     if (active === "more") return <MorePage onNavigate={navigate} />;
@@ -939,4 +1318,5 @@ export default function App() {
   }, [active, colorAssist, role, i18n.language]);
   return <div className={`app-shell ${colorAssist ? "color-assist" : ""}`} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()}><Navigation active={active} onChange={navigate} role={role} /><main><Header role={role} colorAssist={colorAssist} setRole={(next) => { setRole(next); if (next === "staff" && ["employees", "closeout"].includes(active)) navigate("today"); }} /><div className="content">{page}</div></main>{showBackToTop && <button className="back-to-top" type="button" aria-label={t("backToTop")} onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>{formatBackToTopParts(i18n.language).map((part) => <span className="back-to-top-word" key={part}>{part}</span>)}</button>}</div>;
 }
+
 
