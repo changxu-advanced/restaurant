@@ -1,6 +1,6 @@
 {
   "name": "@restaurant-ops/web",
-  "version": "0.2.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -38,4 +38,5 @@
     "vitest": "^3.2.4"
   }
 }
+
 

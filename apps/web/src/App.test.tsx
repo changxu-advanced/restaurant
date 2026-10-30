@@ -25,6 +25,23 @@ describe("App", () => {
     expect(screen.getByText("対応が必要")).toBeInTheDocument();
   });
 
+  it("renders the closeout revenue visualization", () => {
+    window.location.hash = "#/closeout";
+    render(<MemoryRouter><App /></MemoryRouter>);
+    expect(screen.getByText("本日の売上")).toBeInTheDocument();
+    expect(screen.getByText("直近7日間の売上")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "支払方法の内訳" })).toBeInTheDocument();
+    expect(document.querySelector(".revenue-chart")).toBeInTheDocument();
+    expect(document.querySelectorAll(".revenue-chart-y-label")).toHaveLength(4);
+    expect(document.querySelector(".payment-donut")).toBeInTheDocument();
+    expect(document.querySelectorAll(".revenue-chart-point-dot")).toHaveLength(7);
+    expect(document.querySelectorAll(".payment-donut-segment")).toHaveLength(2);
+    fireEvent.mouseEnter(document.querySelector(".revenue-chart-point") as Element);
+    expect(document.querySelector(".revenue-chart-tooltip")).toBeInTheDocument();
+    fireEvent.mouseEnter(document.querySelector(".payment-donut-segment.cash") as Element);
+    expect(document.querySelector(".payment-donut-tooltip")).toHaveTextContent("現金");
+  });
+
   it("renders the store date from the current Japan date", () => {
     vi.useFakeTimers({ now: new Date("2026-10-26T15:00:00.000Z") });
     render(<MemoryRouter><App /></MemoryRouter>);
@@ -298,7 +315,8 @@ describe("App", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={queryClient}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
     fireEvent.click(await screen.findByRole("button", { name: /欠員支援を作成/ }));
-    fireEvent.change(screen.getByLabelText("日付"), { target: { value: "2026-10-29" } });
+    const shiftDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    fireEvent.change(screen.getByLabelText("日付"), { target: { value: shiftDate } });
     fireEvent.change(screen.getByLabelText("開始時間"), { target: { value: "17:00" } });
     fireEvent.change(screen.getByLabelText("終了時間"), { target: { value: "20:00" } });
     fireEvent.change(screen.getByLabelText("欠員ポジション"), { target: { value: "ホール" } });
@@ -387,6 +405,41 @@ describe("App", () => {
     expect(screen.getAllByRole("button", { name: "10/28 水 11:00–12:00" })[0]).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getAllByRole("button", { name: "10/28 水 10:00–11:00" })[0]);
     expect(screen.getAllByRole("button", { name: "10/28 水 10:00–11:00" })[0]).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("renders the demo shift gantt chart with localized axes and employee colors", () => {
+    window.location.hash = "#/schedule";
+    render(<MemoryRouter><App /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: "勤務ガントチャート" })).toBeInTheDocument();
+    expect(screen.getByText("スタッフ", { selector: ".schedule-gantt-axis > span" })).toBeInTheDocument();
+    expect(screen.getByText("08:00")).toBeInTheDocument();
+    expect(screen.getAllByText("佐藤 美咲").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll(".schedule-gantt-bar")).toHaveLength(4);
+    expect(document.querySelector(".schedule-gantt-bar.employee-1")).toBeInTheDocument();
+    expect(document.querySelector(".schedule-gantt-bar.employee-2")).toBeInTheDocument();
+  });
+
+  it("keeps settings sync and completed schedule export without settings JSON export", () => {
+    window.location.hash = "#/settings";
+    render(<MemoryRouter><App /></MemoryRouter>);
+    expect(screen.getByRole("button", { name: /同期|同步|sync/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /PDF/ })).toBeInTheDocument();
+    expect(screen.queryByText(/設定をエクスポート|导出设置|Export settings/)).not.toBeInTheDocument();
+  });
+
+  it("exports a gantt print view instead of the legacy table", () => {
+    window.location.hash = "#/settings";
+    const write = vi.fn();
+    const printWindow = { document: { write, close: vi.fn() }, focus: vi.fn(), print: vi.fn() } as unknown as Window;
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(printWindow);
+    render(<MemoryRouter><App /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: /PDF/ }));
+    const html = String(write.mock.calls[0]?.[0] ?? "");
+    expect(html).toContain("class=\"gantt\"");
+    expect(html).toContain("08:00");
+    expect(html).toContain("gantt-bar employee-1");
+    expect(html).not.toContain("<table>");
+    openSpy.mockRestore();
   });
 
   it("cancels the selected time range between two points", () => {

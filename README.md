@@ -4,9 +4,9 @@
 
 `Java / Spring Boot / React / TypeScript / PostgreSQL / Python / OR-Tools / AWS CDK` を使用した、日本の飲食店向けポートフォリオプロジェクトです。公開デモはすべて架空データで動作します。
 
-GitHub: https://github.com/changxu-advanced/restaurant · 当前版本: `v0.2.0`
+GitHub: https://github.com/changxu-advanced/restaurant · 当前版本: `v0.5.0`
 
-第二版在首版营业时间线基础上增加了后期扩展模块：客诉与カスタマーハラスメント、预约与无断キャンセル、设备维修、过敏原与特殊饮食、跨店支援和员工评价。它们统一通过“更多”入口进入，移动端保持单列卡片和44px以上操作区域。
+当前版本在基础营业时间线、异常运营、员工管理和店长聊天协作之上，补充了营业额可视化、支付方式分析、动画图表和已完成排班表甘特图 PDF 导出。它们统一通过导航入口进入，移动端保持单列卡片和44px以上操作区域。
 
 ![今日の営業ボード](docs/portfolio/screenshots/dashboard.png)
 
@@ -17,7 +17,7 @@ GitHub: https://github.com/changxu-advanced/restaurant · 当前版本: `v0.2.0`
 - 欠員支援カード、在庫確認、欠品予測、発注Draft
 - 店舗チャット、写真付き引き継ぎ、新人教材
 - POS CSV取込、現金実査、売上・粗利・人件費の日次締め
-- 日本語、簡体字中国語、英語、色覚サポート
+- 日本語、簡体字中国語、繁體字中国語、英語、한국어、Tiếng Việt、色覚サポート
 
 ## Architecture
 
@@ -50,7 +50,7 @@ docker compose up --build api scheduler
 pnpm dev
 ```
 
-Webのみを確認する場合は、APIが未起動でも合成データによるDemo Modeで動作します。
+Webのみを確認する場合は、APIが未起動でも合成データによるDemo Modeで動作します。自宅で画面と Mock 機能を確認するだけなら、Docker やデータベースを起動せずに `pnpm dev` だけで実行できます。
 
 表示言語は日本語、簡体中文、繁體中文、English、한국어、Tiếng Việtに対応しています。言語を切り替えると、ナビゲーション、カード、状態、教材、設定を含む表示中の画面全体が同じ言語に切り替わります。
 
@@ -85,4 +85,5 @@ pnpm infra:synth
 ### English summary
 
 A portfolio-grade restaurant operations platform for Japan, focused on explainable scheduling, exception-driven workflows, accessible UI, and production-minded AWS architecture.
+
 

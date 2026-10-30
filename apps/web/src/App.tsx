@@ -1,10 +1,10 @@
 import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  AlertTriangle, Archive, BadgeInfo, BookOpen, Boxes, CalendarDays, Check, ChevronDown, ChevronRight,
+  AlertTriangle, Archive, BadgeInfo, Bell, BookOpen, Boxes, CalendarDays, Check, ChevronDown, ChevronRight,
   CircleDollarSign, CircleHelp, Clock3, Languages, LayoutDashboard, MessageCircle, PackageCheck,
   Settings, Sparkles, Store, Users, UtensilsCrossed, Eye, MoreHorizontal, MessageSquareWarning, Megaphone, Wrench, ShieldCheck, Building2, Star, CalendarCheck, Camera, CheckCircle2, FileText,
-  Paperclip, Search
+  Paperclip, Search, Download, RefreshCw
 } from "lucide-react";
 import { featureCards, initialInventory, shifts } from "./demoData";
 import { useCreateEmployee, useDeactivateEmployee, useEmployee, useEmployees, usePlaceEmployeeOnLeave, useReactivateEmployee, useStoreSettings, useUpdateEmployee } from "./employeeApi";
@@ -113,6 +113,111 @@ function StatusPill({ tone, children }: { tone: "normal" | "warning" | "danger" 
   return <span className={`status-pill ${tone}`}><span aria-hidden="true">{icon}</span>{children}</span>;
 }
 
+function AnimatedNumber({ value, format, className = "" }: { value: number; format: (value: number) => string; className?: string }) {
+  const elementRef = useRef<HTMLElement | null>(null);
+  const animationStarted = useRef(false);
+  const displayValueRef = useRef(0);
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!element) return;
+    let frameId: number | undefined;
+    let observer: IntersectionObserver | undefined;
+    const animate = (from: number, to: number) => {
+      const startedAt = performance.now();
+      const duration = 900;
+      const tick = (now: number) => {
+        const progress = Math.min(1, (now - startedAt) / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const nextValue = Math.round(from + (to - from) * eased);
+        displayValueRef.current = nextValue;
+        setDisplayValue(nextValue);
+        if (progress < 1) frameId = window.requestAnimationFrame(tick);
+      };
+      frameId = window.requestAnimationFrame(tick);
+    };
+    const startAnimation = () => {
+      if (!animationStarted.current) animationStarted.current = true;
+      if (displayValueRef.current !== value) animate(displayValueRef.current, value);
+    };
+
+    if ("IntersectionObserver" in window) {
+      observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) startAnimation();
+      }, { threshold: 0.25 });
+      observer.observe(element);
+    } else {
+      startAnimation();
+    }
+
+    return () => {
+      if (frameId !== undefined) window.cancelAnimationFrame(frameId);
+      observer?.disconnect();
+    };
+  }, [value]);
+
+  return <strong ref={elementRef} className={`animated-number ${className}`.trim()}>{format(displayValue)}</strong>;
+}
+
+function useAnimatedProgress<T extends Element>() {
+  const elementRef = useRef<T | null>(null);
+  const started = useRef(false);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!element) return;
+    let frameId: number | undefined;
+    let observer: IntersectionObserver | undefined;
+    const start = () => {
+      if (started.current) return;
+      started.current = true;
+      const startedAt = performance.now();
+      const duration = 950;
+      const tick = (now: number) => {
+        const rawProgress = Math.min(1, (now - startedAt) / duration);
+        setProgress(1 - Math.pow(1 - rawProgress, 3));
+        if (rawProgress < 1) frameId = window.requestAnimationFrame(tick);
+      };
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    if ("IntersectionObserver" in window) {
+      observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) start();
+      }, { threshold: 0.2 });
+      observer.observe(element);
+    } else {
+      start();
+    }
+
+    return () => {
+      if (frameId !== undefined) window.cancelAnimationFrame(frameId);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return { ref: elementRef, progress };
+}
+
+function donutArcPath(startAngle: number, endAngle: number, radius = 55) {
+  const toPoint = (angle: number) => {
+    const radians = angle * Math.PI / 180;
+    return { x: 80 + radius * Math.cos(radians), y: 80 + radius * Math.sin(radians) };
+  };
+  const start = toPoint(startAngle);
+  const end = toPoint(endAngle);
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+}
+
+function donutOffset(startAngle: number, endAngle: number, active: boolean) {
+  if (!active) return undefined;
+  const radians = ((startAngle + endAngle) / 2) * Math.PI / 180;
+  return `translate(${Math.cos(radians) * 10} ${Math.sin(radians) * 10})`;
+}
+
 function Card({ children, className = "", id, tabIndex, onClick }: { children: React.ReactNode; className?: string; id?: string; tabIndex?: number; onClick?: React.MouseEventHandler<HTMLElement> }) {
   return <section id={id} tabIndex={tabIndex} onClick={onClick} className={`card ${className}`}>{children}</section>;
 }
@@ -170,7 +275,7 @@ function Navigation({ active, onChange, role }: { active: NavKey; onChange: (key
             </button>
           ))}
         </nav>
-        <div className="sidebar-note" title={t("fictionalData")}><BadgeInfo size={17} /><span><strong>{t("demoEnvironment")}</strong><br />{t("fictionalData")} · v0.2.0</span></div>
+        <div className="sidebar-note" title={t("fictionalData")}><BadgeInfo size={17} /><span><strong>{t("demoEnvironment")}</strong><br />{t("fictionalData")} · v0.5.0</span></div>
       </aside>
       <nav className="bottom-nav" aria-label={t("mobileNavigation")}>
         {["today", "schedule", "inventory", "chat", "more"].map((key) => visible.find((item) => item.key === key)).filter((item): item is typeof navItems[number] => Boolean(item)).map(({ key, icon: Icon }) => (
@@ -185,7 +290,7 @@ function Navigation({ active, onChange, role }: { active: NavKey; onChange: (key
 
 function MorePage({ onNavigate }: { onNavigate: (key: NavKey) => void }) {
   const { t } = useTranslation();
-  return <div className="page-stack"><div className="page-title"><div><p className="eyebrow">v0.2.0 · {t("exceptionHandling")}</p><h2>{t("more")}</h2><p>{t("moreDescription")}</p></div></div><div className="feature-grid">{featureCards.map((feature) => { const Icon = featureIcons[feature.icon]; const copy = featureCopyKeys[feature.key as keyof typeof featureCopyKeys]; return <Card key={feature.key} className="feature-card"><div className="feature-icon"><Icon size={22} /></div><div className="feature-copy"><div className="card-title-row"><h3>{t(copy.title)}</h3><StatusPill tone={feature.tone}>{t(copy.status)}</StatusPill></div><p>{t(copy.summary)}</p></div><button className="secondary-button" onClick={() => onNavigate(feature.key as NavKey)}>{t("view")}<ChevronRight size={17} /></button></Card>; })}</div><Card className="notice-card"><BadgeInfo size={21} /><div><strong>{t("laterPrinciples")}</strong><p>{t("laterPrinciplesDescription")}</p></div></Card></div>;
+  return <div className="page-stack"><div className="page-title"><div><p className="eyebrow">v0.5.0 · {t("exceptionHandling")}</p><h2>{t("more")}</h2><p>{t("moreDescription")}</p></div></div><div className="feature-grid">{featureCards.map((feature) => { const Icon = featureIcons[feature.icon]; const copy = featureCopyKeys[feature.key as keyof typeof featureCopyKeys]; return <Card key={feature.key} className="feature-card"><div className="feature-icon"><Icon size={22} /></div><div className="feature-copy"><div className="card-title-row"><h3>{t(copy.title)}</h3><StatusPill tone={feature.tone}>{t(copy.status)}</StatusPill></div><p>{t(copy.summary)}</p></div><button className="secondary-button" onClick={() => onNavigate(feature.key as NavKey)}>{t("view")}<ChevronRight size={17} /></button></Card>; })}</div><Card className="notice-card"><BadgeInfo size={21} /><div><strong>{t("laterPrinciples")}</strong><p>{t("laterPrinciplesDescription")}</p></div></Card></div>;
 }
 
 function IncidentsPage() {
@@ -268,13 +373,61 @@ function TodayPage({ onNavigate }: { onNavigate: (key: NavKey) => void }) {
   );
 }
 
-function SchedulePage() {
+type SchedulePrintRow = { employee: string; area: string; start: string; end: string; warning?: string };
+const escapePrintHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
+const scheduleShiftArea = (shift: (typeof shifts)[number], t: (key: string) => string) => {
+  const areaByKey: Record<NonNullable<(typeof shift)["areaKey"]>, string> = {
+    hallManager: `${t("hall")} · ${t("storeManager")}`,
+    kitchenWok: `${t("kitchen")} · ${t("wok")}`,
+    hallRegister: `${t("hall")} · ${t("register")}`,
+    kitchenDishwashing: `${t("kitchen")} · ${t("dishwashing")}`
+  };
+  return shift.areaKey ? areaByKey[shift.areaKey] : shift.area;
+};
+const buildSchedulePrintRows = (t: (key: string) => string): SchedulePrintRow[] => shifts.map((shift) => ({ employee: shift.employee, area: scheduleShiftArea(shift, t), start: shift.start, end: shift.end, warning: shift.warning ? `${t("approaching")} · 89%` : undefined }));
+const ganttTimeToMinutes = (value: string) => { const [hour, minute] = value.split(":").map(Number); return hour * 60 + minute; };
+
+function openSchedulePrintView({ language, storeName, businessHours, role, t, rows }: { language: string; storeName: string; businessHours: string; role: "manager" | "staff"; t: (key: string) => string; rows: SchedulePrintRow[] }) {
+  const printWindow = window.open("", "_blank", "width=1000,height=800");
+  if (!printWindow) return;
+  const generatedAt = new Intl.DateTimeFormat(language === "ja" ? "ja-JP" : language, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(new Date());
+  const traceSuffix = globalThis.crypto?.randomUUID?.().slice(0, 8).toUpperCase() ?? String(Date.now()).slice(-8);
+  const traceId = `SCH-${new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14)}-${traceSuffix}`;
+  const currentUser = role === "staff" ? "鈴木 海（スタッフ）" : "佐藤 美咲（店長）";
+  const ganttStart = 8 * 60;
+  const ganttEnd = 24 * 60;
+  const axisTimes = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00", "24:00"];
+  const axis = axisTimes.map((time) => `<span>${escapePrintHtml(time)}</span>`).join("");
+  const ganttRows = rows.map((row, index) => {
+    const start = Math.max(ganttStart, ganttTimeToMinutes(row.start));
+    const end = Math.min(ganttEnd, Math.max(start, ganttTimeToMinutes(row.end)));
+    const left = ((start - ganttStart) / (ganttEnd - ganttStart)) * 100;
+    const width = ((end - start) / (ganttEnd - ganttStart)) * 100;
+    const barClass = `employee-${(index % 6) + 1}${row.warning ? " has-warning" : ""}`;
+    return `<div class="gantt-row"><div class="gantt-person"><strong>${escapePrintHtml(row.employee)}</strong><span>${escapePrintHtml(row.area)}</span></div><div class="gantt-track"><div class="gantt-bar ${barClass}" style="left:${left}%;width:${Math.max(width, 2)}%"><b>${escapePrintHtml(`${row.start}–${row.end}`)}</b>${row.warning ? `<small>${escapePrintHtml(row.warning)}</small>` : ""}</div></div></div>`;
+  }).join("");
+  const legend = rows.map((row, index) => `<span><i class="employee-${(index % 6) + 1}"></i>${escapePrintHtml(row.employee)}</span>`).join("");
+  printWindow.document.write(`<!doctype html><html lang="${escapePrintHtml(language)}"><head><meta charset="utf-8"><title>${escapePrintHtml(t("schedulePdfTitle"))}</title><style>
+    @page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font-family:"Noto Sans SC","Noto Sans JP","Yu Gothic",Arial,sans-serif;color:#2d2723;margin:0;position:relative}body:before{content:"${escapePrintHtml(t("scheduleWatermark"))} · ${escapePrintHtml(traceId)}";position:fixed;inset:35% -10%;display:flex;align-items:center;justify-content:center;transform:rotate(-24deg);font-size:28px;letter-spacing:2px;color:rgba(112,88,67,.09);font-weight:700;pointer-events:none;white-space:nowrap}.header{border-bottom:2px solid #c86b3a;padding-bottom:12px;margin-bottom:14px}.eyebrow{color:#c86b3a;font-size:12px;font-weight:700;letter-spacing:.08em}.title{font-size:26px;font-weight:700;margin:6px 0 0}.meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 28px;margin:14px 0 18px}.meta div{border-bottom:1px solid #e7d9cb;padding:7px 0}.meta strong{display:block;font-size:11px;color:#7a6d64;margin-bottom:3px}.meta span{font-size:14px}.summary{background:#faf3eb;border:1px solid #ead5c4;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px}.gantt{border:1px solid #ead5c4;border-radius:10px;padding:14px;background:#fffaf5}.gantt-axis,.gantt-row{display:grid;grid-template-columns:170px 1fr;gap:12px;align-items:center}.gantt-axis{padding-bottom:8px;border-bottom:1px solid #eadfd5;color:#7a6d64;font-size:11px}.gantt-hours{display:grid;grid-template-columns:repeat(9,1fr);font-size:10px}.gantt-hours span{text-align:left}.gantt-hours span:last-child{text-align:right}.gantt-row{min-height:42px;border-bottom:1px solid #f0e4da}.gantt-person{display:grid;gap:2px;font-size:12px}.gantt-person span{color:#7a6d64;font-size:10px}.gantt-track{height:24px;position:relative;border-radius:6px;background:repeating-linear-gradient(to right,#f4ebe3 0,#f4ebe3 calc(12.5% - 1px),#e3d4c7 calc(12.5% - 1px),#e3d4c7 12.5%)}.gantt-bar{position:absolute;top:2px;height:20px;border-radius:5px;padding:2px 7px;color:white;font-size:10px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;min-width:26px}.gantt-bar small{font-size:9px;opacity:.9}.employee-1{background:#c86b3a}.employee-2{background:#3f7c78}.employee-3{background:#8b6fae}.employee-4{background:#4f7e55}.employee-5{background:#b7772d}.employee-6{background:#6b778d}.gantt-bar.has-warning{background-color:#b64f40;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.35) 0,rgba(255,255,255,.35) 4px,transparent 4px,transparent 8px)}.legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px;font-size:10px}.legend span{display:inline-flex;align-items:center;gap:5px}.legend i{width:9px;height:9px;border-radius:50%;display:inline-block}.footer{border-top:1px solid #e7d9cb;margin-top:18px;padding-top:10px;display:grid;gap:4px;color:#6f625a;font-size:10px}.hint{margin-top:14px;font-size:10px;color:#8c7f76}@media print{.hint{display:none}}
+  </style></head><body><header class="header"><div class="eyebrow">${escapePrintHtml(t("scheduleWatermark"))}</div><div class="title">${escapePrintHtml(storeName)} · ${escapePrintHtml(t("schedulePdfTitle"))} · ${escapePrintHtml(t("ganttTitle"))}</div></header><section class="meta"><div><strong>${escapePrintHtml(t("schedulePeriod"))}</strong><span>2026.10.26–11.08</span></div><div><strong>${escapePrintHtml(t("storeHoursLabel"))}</strong><span>${escapePrintHtml(businessHours)}</span></div><div><strong>${escapePrintHtml(t("publishedAt"))}</strong><span>${escapePrintHtml(generatedAt)}</span></div><div><strong>${escapePrintHtml(t("scheduleWarning"))}</strong><span>${escapePrintHtml(t("noViolations"))} · ${escapePrintHtml(t("coverageRate"))}</span></div></section><div class="summary">${escapePrintHtml(t("exportScheduleHint"))}</div><section class="gantt" aria-label="${escapePrintHtml(t("ganttTitle"))}"><div class="gantt-axis"><span>${escapePrintHtml(t("ganttEmployee"))}</span><div class="gantt-hours">${axis}</div></div>${ganttRows}<div class="legend">${legend}</div></section><footer class="footer"><div><strong>${escapePrintHtml(t("downloadedBy"))}：</strong>${escapePrintHtml(currentUser)}</div><div><strong>${escapePrintHtml(t("publishedAt"))}：</strong>${escapePrintHtml(generatedAt)}</div><div><strong>${escapePrintHtml(t("traceIdLabel"))}：</strong>${escapePrintHtml(traceId)}</div><div class="hint">${escapePrintHtml(t("pdfPrintHint"))}</div></footer></body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  window.setTimeout(() => printWindow.print(), 250);
+}
+
+function SchedulePage({ role }: { role: "manager" | "staff" }) {
   const { t, i18n } = useTranslation();
   const [availability, setAvailability] = useState<Record<string, string[]>>(() => Object.fromEntries(availabilityDays.map((day, index) => [day, index === 2 ? [] : index === 5 ? ["12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "00"] : index === 6 ? ["09", "10", "11", "12"] : ["prep", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]])));
   const [mobileDay, setMobileDay] = useState(availabilityDays[0]);
   const [rangeStart, setRangeStart] = useState<Record<string, RangeStart | null>>(() => Object.fromEntries(availabilityDays.map((day) => [day, null])));
   const [status, setStatus] = useState<"idle" | "running" | "ready">("idle");
   const generate = () => { setStatus("running"); window.setTimeout(() => setStatus("ready"), 900); };
+  const exportSchedule = () => {
+    const storeName = localStorage.getItem("settings.storeName") ?? "大阪中央店";
+    const businessHours = localStorage.getItem("settings.businessHours") ?? "11:00–23:00";
+    const rows = buildSchedulePrintRows(t);
+    openSchedulePrintView({ language: i18n.language, storeName, businessHours, role, t, rows });
+  };
   const toggleBlock = (day: string, blockId: string) => {
     const selected = availability[day] ?? [];
     const currentRangeStart = rangeStart[day];
@@ -318,7 +471,7 @@ function SchedulePage() {
   const blockLabel = (block: typeof availabilityBlocks[number]) => block.id === "prep" ? t("prepHours") : `${block.id}${t("hourSuffix")}`;
   const renderBlock = (day: string, block: typeof availabilityBlocks[number]) => { const selected = availability[day].includes(block.id); const isRangeStart = rangeStart[day]?.blockId === block.id; const displayDay = localizedDay(day, i18n.language); return <button key={block.id} type="button" aria-pressed={selected} aria-label={`${displayDay} ${block.time}`} className={`time-block ${block.tone} ${selected ? "selected" : ""} ${isRangeStart ? "range-start" : ""}`} onClick={() => toggleBlock(day, block.id)}><span>{selected ? "✓" : "○"} {blockLabel(block)}</span><time>{block.time}</time></button>; };
   return (
-      <div className="page-stack"><div className="page-title"><div><p className="eyebrow">2026.10.26–11.08</p><h2>{t("schedule")}</h2><p>{t("scheduleDescription")}</p></div><button className="primary-button" onClick={generate} disabled={status === "running"}><Sparkles size={18} />{status === "running" ? t("optimizing") : t("generate")}</button></div>
+      <div className="page-stack"><div className="page-title"><div><p className="eyebrow">2026.10.26–11.08</p><h2>{t("schedule")}</h2><p>{t("scheduleDescription")}</p></div><div className="button-row"><button className="secondary-button" onClick={exportSchedule} disabled={status !== "ready" || role !== "manager"}><Download size={18} />{t("exportSchedule")}</button><button className="primary-button" onClick={generate} disabled={status === "running"}><Sparkles size={18} />{status === "running" ? t("optimizing") : t("generate")}</button></div></div>
       <div className="two-column">
         <Card className="availability-card">
           <div className="section-heading"><div><h3>{t("availability")}</h3><p className="muted">{t("tapTimeSlot")}</p></div><div className="button-row desktop-actions"><button className="text-button" onClick={copyPreviousDay}>{t("copyPrevious")}</button><button className="text-button" onClick={applyWeekdays}>{t("weekdays")}</button></div></div>
@@ -332,8 +485,34 @@ function SchedulePage() {
           </div>
           <div className="card-footer"><span className="muted">{t("fixedTimeSlots")}</span><StatusPill tone="normal">{t("submitted")}</StatusPill></div>
         </Card>
-        <div className="page-stack compact-gap"><Card><div className="section-heading"><h3>{t("autoSchedule")}</h3><StatusPill tone={status === "ready" ? "normal" : "neutral"}>{status === "ready" ? t("draftReady") : t("notRun")}</StatusPill></div>{status === "ready" ? <div className="solver-result"><div><strong>{t("noViolations")}</strong><span>{t("coverageRate")}</span></div><div className="score-bar"><span style={{ width: "97.6%" }} /></div><ul><li>{t("missingPosition")}</li><li>{t("avoidedShortShifts")}</li><li>{t("balancedWeekends")}</li></ul><button className="primary-button full">{t("reviewDraft")}</button></div> : <div className="empty-state"><Sparkles size={30} /><strong>{t("availability")} → {t("autoSchedule")}</strong><span>{t("noRelax")}</span></div>}</Card><Card><div className="section-heading"><h3>{t("shiftList")}</h3><span className="muted">{t("peopleCount")}</span></div><div className="shift-list">{shifts.map((shift) => { const area = shift.id === "s1" ? `${t("hall")} · ${t("storeManager")}` : shift.id === "s2" ? `${t("kitchen")} · ${t("wok")}` : shift.id === "s3" ? `${t("hall")} · ${t("register")}` : `${t("kitchen")} · ${t("dishwashing")}`; return <div className="shift-row" key={shift.id}><div><strong>{shift.employee}</strong><span>{area}</span></div><div className="shift-time"><strong>{shift.start}–{shift.end}</strong>{shift.warning && <StatusPill tone="warning">! {t("approaching")} · 89%</StatusPill>}</div></div>; })}</div></Card></div>
+        <div className="page-stack compact-gap"><Card><div className="section-heading"><h3>{t("autoSchedule")}</h3><StatusPill tone={status === "ready" ? "normal" : "neutral"}>{status === "ready" ? t("draftReady") : t("notRun")}</StatusPill></div>{status === "ready" ? <div className="solver-result"><div><strong>{t("noViolations")}</strong><span>{t("coverageRate")}</span></div><div className="score-bar"><span style={{ width: "97.6%" }} /></div><ul><li>{t("missingPosition")}</li><li>{t("avoidedShortShifts")}</li><li>{t("balancedWeekends")}</li></ul><button className="primary-button full">{t("reviewDraft")}</button></div> : <div className="empty-state"><Sparkles size={30} /><strong>{t("availability")} → {t("autoSchedule")}</strong><span>{t("noRelax")}</span></div>}</Card><Card><div className="section-heading"><h3>{t("shiftList")}</h3><span className="muted">{t("peopleCount")}</span></div><div className="shift-list">{shifts.map((shift) => { const area = scheduleShiftArea(shift, t); return <div className="shift-row" key={shift.id}><div><strong>{shift.employee}</strong><span>{area}</span></div><div className="shift-time"><strong>{shift.start}–{shift.end}</strong>{shift.warning && <StatusPill tone="warning">! {t("approaching")} · 89%</StatusPill>}</div></div>; })}</div></Card></div>
       </div>
+      <Card className="schedule-gantt-card">
+        <div className="section-heading">
+          <div><h3>{t("ganttTitle")}</h3><p className="muted">{t("ganttDescription")}</p></div>
+          <StatusPill tone="neutral">{t("ganttToday")}</StatusPill>
+        </div>
+        <div className="schedule-gantt" role="img" aria-label={t("ganttTitle")}>
+          <div className="schedule-gantt-axis">
+            <span>{t("ganttEmployee")}</span>
+            <div className="schedule-gantt-hours" aria-label={t("ganttTime")}>
+              {["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00", "24:00"].map((time) => <span key={time}>{time}</span>)}
+            </div>
+          </div>
+          <div className="schedule-gantt-rows">
+            {shifts.map((shift, index) => {
+              const start = Math.max(8 * 60, ganttTimeToMinutes(shift.start));
+              const end = Math.min(24 * 60, Math.max(start, ganttTimeToMinutes(shift.end)));
+              const left = ((start - 8 * 60) / (16 * 60)) * 100;
+              const width = ((end - start) / (16 * 60)) * 100;
+              return <div className="schedule-gantt-row" key={shift.id}><div className="schedule-gantt-name"><strong>{shift.employee}</strong><span>{scheduleShiftArea(shift, t)}</span></div><div className="schedule-gantt-track"><div className={`schedule-gantt-bar employee-${(index % 6) + 1}${shift.warning ? " has-warning" : ""}`} style={{ left: `${left}%`, width: `${width}%` }} title={`${shift.employee} ${shift.start}–${shift.end}`}><span>{shift.start}–{shift.end}</span></div></div></div>;
+            })}
+          </div>
+        </div>
+        <div className="schedule-gantt-legend" aria-label={t("ganttEmployee")}>
+          {shifts.map((shift, index) => <span key={shift.id}><i className={`employee-${(index % 6) + 1}`} />{shift.employee}</span>)}
+        </div>
+      </Card>
     </div>
   );
 }
@@ -1249,18 +1428,110 @@ export function EmployeesPageContent({ role }: { role: "manager" | "staff" }) {
 
 const LazyEmployeesPage = lazy(() => import("./pages/EmployeesPage"));
 
-function CloseoutPage() {
-  const { t } = useTranslation();
+function LegacyCloseoutPage() {
+  const { t, i18n } = useTranslation();
   const [counts, setCounts] = useState({ tenThousand: 3, fiveThousand: 4, thousand: 26, fiveHundred: 9, hundred: 31 });
   const actual = counts.tenThousand * 10000 + counts.fiveThousand * 5000 + counts.thousand * 1000 + counts.fiveHundred * 500 + counts.hundred * 100;
   const expected = 83600;
   const update = (key: keyof typeof counts, value: number) => setCounts((current) => ({ ...current, [key]: Math.max(0, value) }));
-  return <div className="page-stack"><div className="page-title"><div><p className="eyebrow">{t("lastOrder")}{t("closeoutAfter")}</p><h2>{t("closeout")}</h2><p>{t("closeoutDescription")}</p></div><StatusPill tone="warning">! {t("provisional")}</StatusPill></div><div className="metric-grid"><Card><span>{t("sales")}</span><strong>¥ 486,320</strong><small>{t("posSyncTime")}</small></Card><Card><span>{t("grossProfit")}</span><strong>¥ 321,180</strong><small>{t("grossMarginRate")}</small></Card><Card><span>{t("laborCost")}</span><strong>¥ 116,800</strong><small>{t("salesRatio")}</small></Card><Card><span>{t("cashDifference")}</span><strong className={actual - expected === 0 ? "success-text" : "danger-text"}>{actual - expected >= 0 ? "+" : ""}¥ {actual - expected}</strong><small>{t("theoryCash")} ¥ {expected.toLocaleString()}</small></Card></div><div className="two-column"><Card><div className="section-heading"><h3>{t("cashCount")}</h3><span className="mono">¥ {actual.toLocaleString()}</span></div><div className="cash-grid">{([['tenThousand',10000],['fiveThousand',5000],['thousand',1000],['fiveHundred',500],['hundred',100]] as const).map(([key, amount]) => <label key={key}><span>¥ {amount.toLocaleString()}</span><input type="number" min="0" value={counts[key]} onChange={(event) => update(key, Number(event.target.value))} /><strong>¥ {(counts[key] * amount).toLocaleString()}</strong></label>)}</div></Card><Card><div className="section-heading"><h3>{t("incompleteChecks")}</h3><StatusPill tone="warning">2</StatusPill></div><ul className="check-list"><li><span>{t("wasteRecord")}</span><StatusPill tone="normal">✓ {t("complete")}</StatusPill></li><li><span>{t("fridgeHandover")}</span><StatusPill tone="warning">! {t("unfinished")}</StatusPill></li><li><span>{t("stockCheck")}</span><StatusPill tone="normal">✓ {t("complete")}</StatusPill></li><li><span>{t("posReturn")}</span><StatusPill tone="neutral">• {t("provisionalRecord")}</StatusPill></li></ul><button className="primary-button full" disabled={actual !== expected}>{t("confirmCloseout")}</button></Card></div></div>;
+  const revenueSeries = [382400, 418600, 401200, 455900, 439800, 472100, 486320];
+  const revenueLabels = ["10/23", "10/24", "10/25", "10/26", "10/27", "10/28", "10/29"];
+  const maxRevenue = Math.max(...revenueSeries);
+  const minRevenue = Math.min(...revenueSeries);
+  const chartPoints = revenueSeries.map((value, index) => ({ x: 28 + index * 116, y: 164 - ((value - minRevenue) / (maxRevenue - minRevenue)) * 112 }));
+  const linePath = chartPoints.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const areaPath = `${linePath} L ${chartPoints[chartPoints.length - 1].x} 180 L 28 180 Z`;
+  const cashAmount = 194528;
+  const mobileAmount = 291792;
+  const cashPercent = Math.round((cashAmount / (cashAmount + mobileAmount)) * 100);
+  const money = (value: number) => `¥ ${value.toLocaleString(i18n.language === "ja" ? "ja-JP" : i18n.language)}`;
+  return <div className="page-stack"><div className="page-title"><div><p className="eyebrow">{t("lastOrder")}{t("closeoutAfter")}</p><h2>{t("closeout")}</h2><p>{t("closeoutDescription")}</p></div><StatusPill tone="warning">! {t("provisional")}</StatusPill></div><div className="metric-grid"><Card><span>{t("sales")}</span><strong>¥ 486,320</strong><small>{t("posSyncTime")}</small></Card><Card><span>{t("grossProfit")}</span><strong>¥ 321,180</strong><small>{t("grossMarginRate")}</small></Card><Card><span>{t("laborCost")}</span><strong>¥ 116,800</strong><small>{t("salesRatio")}</small></Card><Card><span>{t("cashDifference")}</span><strong className={actual - expected === 0 ? "success-text" : "danger-text"}>{actual - expected >= 0 ? "+" : ""}¥ {actual - expected}</strong><small>{t("theoryCash")} ¥ {expected.toLocaleString()}</small></Card></div><div className="two-column"><Card><div className="section-heading"><h3>{t("cashCount")}</h3><span className="mono">¥ {actual.toLocaleString()}</span></div><p className="cash-count-hint">{t("cashCountHint")}</p><div className="cash-grid-guide"><span>{t("denomination")}</span><span>{t("cashQuantity")}</span><span>{t("subtotal")}</span></div><div className="cash-grid">{([['tenThousand',10000],['fiveThousand',5000],['thousand',1000],['fiveHundred',500],['hundred',100]] as const).map(([key, amount]) => <label key={key}><span>¥ {amount.toLocaleString()}</span><input type="number" min="0" inputMode="numeric" aria-label={`¥ ${amount.toLocaleString()} · ${t("cashQuantity")}`} value={counts[key]} onFocus={(event) => event.currentTarget.select()} onChange={(event) => update(key, Number(event.target.value))} /><strong>¥ {(counts[key] * amount).toLocaleString()}</strong></label>)}</div></Card><Card><div className="section-heading"><h3>{t("incompleteChecks")}</h3><StatusPill tone="warning">2</StatusPill></div><ul className="check-list"><li><span>{t("wasteRecord")}</span><StatusPill tone="normal">✓ {t("complete")}</StatusPill></li><li><span>{t("fridgeHandover")}</span><StatusPill tone="warning">! {t("unfinished")}</StatusPill></li><li><span>{t("stockCheck")}</span><StatusPill tone="normal">✓ {t("complete")}</StatusPill></li><li><span>{t("posReturn")}</span><StatusPill tone="neutral">• {t("provisionalRecord")}</StatusPill></li></ul><button className="primary-button full" disabled={actual !== expected}>{t("confirmCloseout")}</button></Card></div></div>;
 }
 
-function SettingsPage({ colorAssist, setColorAssist }: { colorAssist: boolean; setColorAssist: (value: boolean) => void }) {
+function CloseoutPage() {
   const { t, i18n } = useTranslation();
-  return <div className="page-stack narrow"><div className="page-title"><div><p className="eyebrow">{t("preferences")}</p><h2>{t("settings")}</h2><p>{t("settingsDescription")}</p></div></div><Card><div className="settings-list"><label><div><strong>{t("language")}</strong><span>{t("languageHelp")}</span></div><select value={i18n.language} onChange={(event) => { void i18n.changeLanguage(event.target.value); localStorage.setItem("locale", event.target.value); }}><option value="ja">日本語</option><option value="zh">简体中文</option><option value="zh-TW">繁體中文</option><option value="en">English</option><option value="ko">한국어</option><option value="vi">Tiếng Việt</option></select></label><label><div><strong>{t("colorAssist")}</strong><span>{t("colorHelp")}</span></div><button role="switch" aria-checked={colorAssist} className={`switch ${colorAssist ? "on" : ""}`} onClick={() => setColorAssist(!colorAssist)}><span /></button></label><label><div><strong>{t("readReceipts")}</strong><span>{t("readHelp")}</span></div><select defaultValue="important"><option value="off">{t("hideReceipts")}</option><option value="important">{t("importantOnly")}</option><option value="all">{t("allMessages")}</option></select></label></div></Card><Card><div className="section-heading"><div><h3>{t("laborRuleSet")}</h3><p className="muted">{t("demoRule")}</p></div><StatusPill tone="neutral">{t("adminSettings")}</StatusPill></div><p>{t("laborRuleDescription")} {t("legalDisclaimer")}</p></Card></div>;
+  const [counts, setCounts] = useState({ tenThousand: 3, fiveThousand: 4, thousand: 26, fiveHundred: 9, hundred: 31 });
+  const actual = counts.tenThousand * 10000 + counts.fiveThousand * 5000 + counts.thousand * 1000 + counts.fiveHundred * 500 + counts.hundred * 100;
+  const expected = 83600;
+  const update = (key: keyof typeof counts, value: number) => setCounts((current) => ({ ...current, [key]: Math.max(0, value) }));
+  const revenueSeries = [382400, 418600, 401200, 455900, 439800, 472100, 486320];
+  const revenueLabels = ["10/23", "10/24", "10/25", "10/26", "10/27", "10/28", "10/29"];
+  const minRevenue = Math.min(...revenueSeries);
+  const maxRevenue = Math.max(...revenueSeries);
+  const chartPoints = revenueSeries.map((value, index) => ({ x: 28 + index * 116, y: 164 - ((value - minRevenue) / (maxRevenue - minRevenue)) * 112 }));
+  const cashAmount = 194528;
+  const mobileAmount = 291792;
+  const cashPercent = Math.round((cashAmount / (cashAmount + mobileAmount)) * 100);
+  const money = (value: number) => `¥ ${value.toLocaleString(i18n.language === "ja" ? "ja-JP" : i18n.language)}`;
+  const compactMoney = (value: number) => i18n.language === "zh" || i18n.language === "zh-TW" || i18n.language === "ja" ? `¥${Math.round(value / 10000)}万` : `¥${Math.round(value / 1000)}k`;
+  const chartMotion = useAnimatedProgress<SVGSVGElement>();
+  const paymentMotion = useAnimatedProgress<HTMLDivElement>();
+  const revenueTicks = [400000, 425000, 450000, 475000];
+  const [hoveredRevenueIndex, setHoveredRevenueIndex] = useState<number | null>(null);
+  const [hoveredPayment, setHoveredPayment] = useState<"cash" | "mobile" | null>(null);
+  const animatedChartPoints = chartPoints.map((point) => ({ ...point, y: 164 + (point.y - 164) * chartMotion.progress }));
+  const animatedLinePath = animatedChartPoints.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const animatedAreaPath = `${animatedLinePath} L ${animatedChartPoints[animatedChartPoints.length - 1].x} 180 L 28 180 Z`;
+  const cashStartAngle = -90;
+  const cashEndAngle = cashStartAngle + cashPercent * 3.6;
+  const mobileStartAngle = cashEndAngle;
+  const mobileEndAngle = 270;
+  return <div className="page-stack">
+     <div className="page-title"><div><p className="eyebrow">{t("lastOrder")}{t("closeoutAfter")}</p><h2>{t("closeout")}</h2><p>{t("closeoutDescription")}</p></div><StatusPill tone="warning">! {t("provisional")}</StatusPill></div>
+     <Card className="revenue-hero"><div className="revenue-hero-main"><span className="eyebrow">{t("todayRevenue")}</span><AnimatedNumber value={486320} format={money} /><small>{t("posSyncTime")}</small></div><div className="revenue-hero-summary"><div className="revenue-hero-change"><StatusPill tone="normal">+8.4% {t("vsPreviousDay")}</StatusPill><span>{t("revenueChangePositive")}</span></div><div className="revenue-hero-metric"><span>{t("grossProfit")}</span><AnimatedNumber value={321180} format={money} /><small>{t("grossMarginRate")}</small></div><div className="revenue-hero-metric"><span>{t("transactionCount")}</span><AnimatedNumber value={286} format={(value) => value.toLocaleString()} /><small>{t("transactionsToday")}</small></div><div className="revenue-hero-metric"><span>{t("averageTicket")}</span><AnimatedNumber value={1697} format={money} /><small>{t("averageTicketHint")}</small></div><div className="revenue-hero-metric revenue-hero-payment"><span>{t("paymentMix")}</span><div><strong>{cashPercent}%</strong><span>{t("cashPayment")}</span><strong>{100 - cashPercent}%</strong><span>{t("mobilePayment")}</span></div></div></div></Card>
+     <div className="revenue-visual-grid"><Card className="revenue-trend-card"><div className="section-heading"><div><h3>{t("weeklyRevenue")}</h3><p className="muted">{t("weeklyRevenueHint")}</p></div><AnimatedNumber className="mono" value={revenueSeries.reduce((sum, value) => sum + value, 0)} format={money} /></div><svg ref={chartMotion.ref} className="revenue-chart" viewBox="0 0 724 220" role="img" aria-label={t("weeklyRevenue")}><g className="revenue-chart-grid">{revenueTicks.map((tick) => { const y = 164 - ((tick - minRevenue) / (maxRevenue - minRevenue)) * 112; return <g key={tick}><line x1="28" x2="724" y1={y} y2={y} /><text className="revenue-chart-y-label" x="22" y={y + 4} textAnchor="end">{compactMoney(tick)}</text></g>; })}</g><path className="revenue-chart-area" d={animatedAreaPath} fill="rgba(199,104,58,.14)" style={{ opacity: chartMotion.progress }} /><path className="revenue-chart-line" d={animatedLinePath} fill="none" stroke="var(--primary)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />{animatedChartPoints.map((point, index) => <g key={revenueLabels[index]} className="revenue-chart-point" tabIndex={0} role="button" aria-label={`${revenueLabels[index]} ${money(revenueSeries[index])}`} onMouseEnter={() => setHoveredRevenueIndex(index)} onMouseLeave={() => setHoveredRevenueIndex(null)} onFocus={() => setHoveredRevenueIndex(index)} onBlur={() => setHoveredRevenueIndex(null)}><circle className="revenue-chart-point-dot" cx={point.x} cy={point.y} r="5" fill="var(--primary)" opacity={chartMotion.progress} /><circle className="revenue-chart-hit-area" cx={point.x} cy={point.y} r="14" fill="transparent" /><text x={point.x} y="208" textAnchor="middle">{revenueLabels[index]}</text>{hoveredRevenueIndex === index && <g className="revenue-chart-tooltip" transform={`translate(${Math.min(Math.max(point.x - 62, 30), 602)} ${Math.max(point.y - 42, 8)})`}><rect width="124" height="28" rx="8" /><text x="62" y="18" textAnchor="middle">{money(revenueSeries[index])}</text></g>}</g>)}</svg></Card><Card className="payment-card"><div className="section-heading"><div><h3>{t("paymentMix")}</h3><p className="muted">{t("paymentMixHint")}</p></div></div><div className="payment-content"><div ref={paymentMotion.ref} className="payment-donut"><svg className="payment-donut-svg" viewBox="0 0 160 160" aria-label={t("paymentMix")}><path className="payment-donut-segment mobile" d={donutArcPath(mobileStartAngle, mobileEndAngle)} style={{ opacity: paymentMotion.progress, transform: donutOffset(mobileStartAngle, mobileEndAngle, hoveredPayment === "mobile") }} strokeWidth="28" onMouseEnter={() => setHoveredPayment("mobile")} onMouseLeave={() => setHoveredPayment(null)} onFocus={() => setHoveredPayment("mobile")} onBlur={() => setHoveredPayment(null)} tabIndex={0} role="button" aria-label={`${t("mobilePayment")} ${money(mobileAmount)}`} /><path className="payment-donut-segment cash" d={donutArcPath(cashStartAngle, cashEndAngle)} style={{ opacity: paymentMotion.progress, transform: donutOffset(cashStartAngle, cashEndAngle, hoveredPayment === "cash") }} strokeWidth="28" onMouseEnter={() => setHoveredPayment("cash")} onMouseLeave={() => setHoveredPayment(null)} onFocus={() => setHoveredPayment("cash")} onBlur={() => setHoveredPayment(null)} tabIndex={0} role="button" aria-label={`${t("cashPayment")} ${money(cashAmount)}`} /></svg><div className="payment-donut-center"><AnimatedNumber value={cashPercent} format={(value) => `${value}%`} /><span>{t("cashPayment")}</span></div>{hoveredPayment && <div className="payment-donut-tooltip" role="status">{hoveredPayment === "cash" ? t("cashPayment") : t("mobilePayment")} · {money(hoveredPayment === "cash" ? cashAmount : mobileAmount)}</div>}</div><div className="payment-legend"><span><i className="cash-dot" />{t("cashPayment")} <AnimatedNumber value={cashAmount} format={money} /></span><span><i className="mobile-dot" />{t("mobilePayment")} <AnimatedNumber value={mobileAmount} format={money} /></span></div></div></Card></div>
+     <div className="operating-insights"><Card><span>{t("peakHour")}</span><strong>18:00–19:00</strong><small>{t("peakHourHint")}</small></Card><Card><span>{t("bestDay")}</span><strong>10/29</strong><small><AnimatedNumber value={486320} format={money} /></small></Card><Card><span>{t("laborCost")}</span><AnimatedNumber value={116800} format={money} /><small>{t("salesRatio")}</small></Card><Card><span>{t("cashDifference")}</span><AnimatedNumber className={actual - expected === 0 ? "success-text" : "danger-text"} value={Math.abs(actual - expected)} format={(value) => `${actual - expected >= 0 ? "+" : "-"}${money(value)}`} /><small>{t("theoryCash")} <AnimatedNumber value={expected} format={money} /></small></Card></div>
+     <div className="two-column"><Card><div className="section-heading"><h3>{t("cashCount")}</h3><AnimatedNumber className="mono" value={actual} format={money} /></div><p className="cash-count-hint">{t("cashCountHint")}</p><div className="cash-grid-guide"><span>{t("denomination")}</span><span>{t("cashQuantity")}</span><span>{t("subtotal")}</span></div><div className="cash-grid">{([['tenThousand',10000],['fiveThousand',5000],['thousand',1000],['fiveHundred',500],['hundred',100]] as const).map(([key, amount]) => <label key={key}><span>{money(amount)}</span><input type="number" min="0" inputMode="numeric" aria-label={`${money(amount)} · ${t("cashQuantity")}`} value={counts[key]} onFocus={(event) => event.currentTarget.select()} onChange={(event) => update(key, Number(event.target.value))} /><strong>{money(counts[key] * amount)}</strong></label>)}</div></Card><Card><div className="section-heading"><h3>{t("incompleteChecks")}</h3><StatusPill tone="warning">2</StatusPill></div><ul className="check-list"><li><span>{t("wasteRecord")}</span><StatusPill tone="normal">✓ {t("complete")}</StatusPill></li><li><span>{t("fridgeHandover")}</span><StatusPill tone="warning">! {t("unfinished")}</StatusPill></li><li><span>{t("stockCheck")}</span><StatusPill tone="normal">✓ {t("complete")}</StatusPill></li><li><span>{t("posReturn")}</span><StatusPill tone="neutral">• {t("provisionalRecord")}</StatusPill></li></ul><button className="primary-button full" disabled={actual !== expected}>{t("confirmCloseout")}</button></Card></div>
+  </div>;
+}
+
+function SettingsPage({ colorAssist, setColorAssist, role }: { colorAssist: boolean; setColorAssist: (value: boolean) => void; role: "manager" | "staff" }) {
+  const { t, i18n } = useTranslation();
+  const [storeName, setStoreName] = useState(() => localStorage.getItem("settings.storeName") ?? "大阪中央店");
+  const [businessHours, setBusinessHours] = useState(() => localStorage.getItem("settings.businessHours") ?? "11:00–23:00");
+  const [timezone, setTimezone] = useState(() => localStorage.getItem("settings.timezone") ?? "Asia/Tokyo");
+  const [saved, setSaved] = useState(false);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [notifications, setNotifications] = useState(() => {
+    const stored = localStorage.getItem("settings.notifications");
+    if (!stored) return { support: true, issues: true, schedule: true };
+    try { return { support: true, issues: true, schedule: true, ...JSON.parse(stored) } as { support: boolean; issues: boolean; schedule: boolean }; } catch { return { support: true, issues: true, schedule: true }; }
+  });
+  const [lastSync, setLastSync] = useState(() => localStorage.getItem("settings.lastSync") ?? "—");
+
+  const saveStoreSettings = () => {
+    localStorage.setItem("settings.storeName", storeName.trim() || "大阪中央店");
+    localStorage.setItem("settings.businessHours", businessHours);
+    localStorage.setItem("settings.timezone", timezone);
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 2200);
+  };
+  const updateNotification = (key: keyof typeof notifications) => {
+    const next = { ...notifications, [key]: !notifications[key] };
+    setNotifications(next);
+    localStorage.setItem("settings.notifications", JSON.stringify(next));
+  };
+  const syncData = () => {
+    const value = new Intl.DateTimeFormat(i18n.language === "ja" ? "ja-JP" : i18n.language, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(new Date());
+    setLastSync(value);
+    localStorage.setItem("settings.lastSync", value);
+  };
+  const exportCompletedSchedule = () => openSchedulePrintView({ language: i18n.language, storeName: localStorage.getItem("settings.storeName") ?? "大阪中央店", businessHours: localStorage.getItem("settings.businessHours") ?? "11:00–23:00", role, t, rows: buildSchedulePrintRows(t) });
+
+  return <div className="page-stack narrow">
+    <div className="page-title"><div><p className="eyebrow">{t("preferences")}</p><h2>{t("settings")}</h2><p>{t("settingsDescription")}</p></div></div>
+    <Card><div className="settings-list">
+      <label><div><strong>{t("language")}</strong><span>{t("languageHelp")}</span></div><select className="settings-select" value={i18n.language} onChange={(event) => { void i18n.changeLanguage(event.target.value); localStorage.setItem("locale", event.target.value); }}><option value="ja">日本語</option><option value="zh">简体中文</option><option value="zh-TW">繁體中文</option><option value="en">English</option><option value="ko">한국어</option><option value="vi">Tiếng Việt</option></select></label>
+      <label><div><strong>{t("colorAssist")}</strong><span>{t("colorHelp")}</span></div><button type="button" role="switch" aria-checked={colorAssist} className={`switch ${colorAssist ? "on" : ""}`} onClick={() => setColorAssist(!colorAssist)}><span /></button></label>
+    </div></Card>
+    <div className="settings-grid">
+      <Card className="settings-card"><div className="section-heading"><div><h3><Store size={19} />{t("storeInfo")}</h3><p className="muted">{t("storeInfoDescription")}</p></div></div><div className="settings-fields"><label className="settings-field"><span>{t("storeName")}</span><input className="settings-input" value={storeName} onChange={(event) => setStoreName(event.target.value)} /></label><label className="settings-field"><span>{t("businessHours")}</span><input className="settings-input" value={businessHours} onChange={(event) => setBusinessHours(event.target.value)} /></label><label className="settings-field"><span>{t("timezone")}</span><select className="settings-input" value={timezone} onChange={(event) => setTimezone(event.target.value)}><option value="Asia/Tokyo">Asia/Tokyo (JST)</option><option value="Asia/Shanghai">Asia/Shanghai (CST)</option><option value="America/Los_Angeles">America/Los_Angeles (PST)</option></select></label></div><div className="settings-actions"><button type="button" className="primary-button" onClick={saveStoreSettings}>{saved ? <><Check size={16} />{t("settingsSaved")}</> : t("saveSettings")}</button></div></Card>
+      <Card className="settings-card"><div className="section-heading"><div><h3><Bell size={19} />{t("notificationSettings")}</h3><p className="muted">{t("notificationSettingsDescription")}</p></div></div><div className="settings-option-list"><div className="settings-option"><div><strong>{t("supportAlerts")}</strong><span>{t("supportAlertsHelp")}</span></div><button type="button" aria-pressed={notifications.support} aria-label={t("supportAlerts")} className={`switch ${notifications.support ? "on" : ""}`} onClick={() => updateNotification("support")}><span /></button></div><div className="settings-option"><div><strong>{t("issueAlerts")}</strong><span>{t("issueAlertsHelp")}</span></div><button type="button" aria-pressed={notifications.issues} aria-label={t("issueAlerts")} className={`switch ${notifications.issues ? "on" : ""}`} onClick={() => updateNotification("issues")}><span /></button></div><div className="settings-option"><div><strong>{t("scheduleAlerts")}</strong><span>{t("scheduleAlertsHelp")}</span></div><button type="button" aria-pressed={notifications.schedule} aria-label={t("scheduleAlerts")} className={`switch ${notifications.schedule ? "on" : ""}`} onClick={() => updateNotification("schedule")}><span /></button></div></div></Card>
+      <Card className="settings-card"><div className="section-heading"><div><h3><ShieldCheck size={19} />{t("permissions")}</h3><p className="muted">{t("permissionsDescription")}</p></div><StatusPill tone="neutral">{t("adminSettings")}</StatusPill></div><div className="settings-permission-summary"><div><strong>{t("manager")}</strong><span>{t("managerPermissionSummary")}</span></div><div><strong>{t("staff")}</strong><span>{t("staffPermissionSummary")}</span></div></div><button type="button" className="secondary-button" onClick={() => setPermissionsOpen(!permissionsOpen)}>{permissionsOpen ? t("hideDetails") : t("viewDetails")}</button>{permissionsOpen && <div className="settings-detail"><p>{t("permissionDetailOne")}</p><p>{t("permissionDetailTwo")}</p></div>}</Card>
+       <Card className="settings-card"><div className="section-heading"><div><h3><RefreshCw size={19} />{t("dataAndSync")}</h3><p className="muted">{t("dataAndSyncDescription")}</p></div><StatusPill tone="normal">{t("syncReady")}</StatusPill></div><div className="sync-status"><span>{t("lastSync")}</span><strong>{lastSync}</strong></div><div className="settings-actions"><button type="button" className="secondary-button" onClick={syncData}><RefreshCw size={16} />{t("syncNow")}</button><button type="button" className="secondary-button" onClick={exportCompletedSchedule}><Download size={16} />{t("exportSchedule")}</button></div><p className="muted settings-export-hint">{t("exportScheduleHint")}</p></Card>
+    </div>
+    <Card><div className="section-heading"><div><h3>{t("laborRuleSet")}</h3><p className="muted">{t("demoRule")}</p></div><StatusPill tone="neutral">{t("adminSettings")}</StatusPill></div><p>{t("laborRuleDescription")} {t("legalDisclaimer")}</p></Card>
+  </div>;
 }
 
 function StaffHome() {
@@ -1302,7 +1573,7 @@ export default function App() {
   }, []);
   const page = useMemo(() => {
     if (active === "today") return role === "manager" ? <TodayPage onNavigate={navigate} /> : <StaffHome />;
-    if (active === "schedule") return <SchedulePage />;
+    if (active === "schedule") return <SchedulePage role={role} />;
     if (active === "inventory") return <InventoryPage />;
     if (active === "chat") return <ChatPage role={role} />;
     if (active === "employees") return <Suspense fallback={<div className="page-stack"><Card><span>{t("loading")}</span></Card></div>}><LazyEmployeesPage role={role} /></Suspense>;
@@ -1314,7 +1585,7 @@ export default function App() {
     if (active === "allergens") return <AllergensPage />;
     if (active === "crossStore") return <CrossStorePage />;
     if (active === "evaluations") return <EvaluationsPage />;
-    return <SettingsPage colorAssist={colorAssist} setColorAssist={(value) => { setColorAssist(value); localStorage.setItem("colorAssist", String(value)); }} />;
+    return <SettingsPage colorAssist={colorAssist} setColorAssist={(value) => { setColorAssist(value); localStorage.setItem("colorAssist", String(value)); }} role={role} />;
   }, [active, colorAssist, role, i18n.language]);
   return <div className={`app-shell ${colorAssist ? "color-assist" : ""}`} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onDragStart={(event) => event.preventDefault()}><Navigation active={active} onChange={navigate} role={role} /><main><Header role={role} colorAssist={colorAssist} setRole={(next) => { setRole(next); if (next === "staff" && ["employees", "closeout"].includes(active)) navigate("today"); }} /><div className="content">{page}</div></main>{showBackToTop && <button className="back-to-top" type="button" aria-label={t("backToTop")} onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>{formatBackToTopParts(i18n.language).map((part) => <span className="back-to-top-word" key={part}>{part}</span>)}</button>}</div>;
 }

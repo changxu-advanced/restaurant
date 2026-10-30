@@ -17,10 +17,10 @@ export const initialInventory: InventoryItem[] = [
 ];
 
 export const shifts: Shift[] = [
-  { id: "s1", employee: "佐藤 美咲", area: "ホール・責任者", start: "10:00", end: "18:00" },
-  { id: "s2", employee: "田中 蓮", area: "厨房・鍋場", start: "10:30", end: "21:30" },
-  { id: "s3", employee: "王 小雨", area: "ホール・レジ", start: "17:00", end: "22:00", warning: "週28時間の89%" },
-  { id: "s4", employee: "鈴木 海", area: "厨房・洗い場", start: "18:00", end: "22:30" }
+  { id: "s1", employeeId: "e1", employee: "佐藤 美咲", area: "ホール・責任者", areaKey: "hallManager", date: "2026-10-29", start: "10:00", end: "18:00", status: "draft" },
+  { id: "s2", employeeId: "e2", employee: "田中 蓮", area: "厨房・鍋場", areaKey: "kitchenWok", date: "2026-10-29", start: "10:30", end: "21:30", status: "draft" },
+  { id: "s3", employeeId: "e3", employee: "王 小雨", area: "ホール・レジ", areaKey: "hallRegister", date: "2026-10-29", start: "17:00", end: "22:00", status: "draft", warning: "週28時間の89%" },
+  { id: "s4", employeeId: "e4", employee: "鈴木 海", area: "厨房・洗い場", areaKey: "kitchenDishwashing", date: "2026-10-29", start: "18:00", end: "22:30", status: "draft" }
 ];
 
 export const featureCards = [
@@ -31,4 +31,5 @@ export const featureCards = [
   { key: "crossStore", icon: "stores", title: "跨店支援", summary: "只向符合技能、时间和工时条件的员工发布支援请求。", status: "明日 1件", tone: "normal" },
   { key: "evaluations", icon: "star", title: "员工评价", summary: "记录事实和成长目标，避免只用主观印象打分。", status: "本月待完成 4人", tone: "neutral" }
 ] as const;
+
 

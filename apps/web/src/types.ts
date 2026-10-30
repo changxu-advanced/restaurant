@@ -24,10 +24,18 @@ export interface InventoryItem {
 
 export interface Shift {
   id: string;
+  /** Stable employee reference used when the mock is replaced by generated schedules. */
+  employeeId?: string;
   employee: string;
   area: string;
+  /** Stable position key for future API-backed schedules; `area` remains a legacy display fallback. */
+  areaKey?: "hallManager" | "kitchenWok" | "hallRegister" | "kitchenDishwashing";
+  /** ISO calendar date for the shift; omitted only for legacy demo rows. */
+  date?: string;
   start: string;
   end: string;
+  status?: "draft" | "published" | "confirmed";
   warning?: string;
 }
+
 
